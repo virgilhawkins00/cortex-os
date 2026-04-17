@@ -1,6 +1,7 @@
 use anyhow::Result;
 use async_nats::Client;
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 use tracing::info;
 
 /// A task request flowing through the NATS bus.
@@ -27,6 +28,58 @@ pub enum TaskStatus {
     Success,
     Error,
     Denied,
+}
+
+// ── Memory-specific request/response types ──────────────────
+
+/// Request to store a memory via cortex.memory.store
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MemoryStoreRequest {
+    pub content: String,
+    pub wing: String,
+    pub room: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<serde_json::Value>,
+}
+
+/// Request to search memory via cortex.memory.search
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MemorySearchRequest {
+    pub query: String,
+    #[serde(default = "default_top_k")]
+    pub top_k: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wing: Option<String>,
+}
+
+fn default_top_k() -> usize {
+    5
+}
+
+/// Request to ingest text via cortex.memory.ingest
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MemoryIngestRequest {
+    pub text: String,
+    pub wing: String,
+    pub room: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<serde_json::Value>,
+}
+
+/// Request LLM thinking via cortex.brain.think
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BrainThinkRequest {
+    pub prompt: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    #[serde(default = "default_true")]
+    pub include_memory: bool,
+    #[serde(default)]
+    pub stream: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 /// The NATS message bus — the nervous system of Cortex OS.
@@ -75,6 +128,65 @@ impl CortexBus {
         let sub = self.client.subscribe(String::from(subject)).await?;
         info!("Subscribed to {subject}");
         Ok(sub)
+    }
+
+    /// Send a request and wait for a reply (request/reply pattern).
+    ///
+    /// This is the primary way the Rust side communicates with the Python
+    /// memory/brain service. The Python NATS bridge subscribes to the
+    /// subject and responds with a `TaskResult`.
+    pub async fn request(
+        &self,
+        subject: &str,
+        payload: &[u8],
+        timeout: Duration,
+    ) -> Result<TaskResult> {
+        let response = tokio::time::timeout(timeout, async {
+            self.client
+                .request(String::from(subject), payload.to_vec().into())
+                .await
+        })
+        .await
+        .map_err(|_| anyhow::anyhow!("NATS request to '{subject}' timed out after {timeout:?}"))?
+        .map_err(|e| anyhow::anyhow!("NATS request to '{subject}' failed: {e}"))?;
+
+        let result: TaskResult = serde_json::from_slice(&response.payload)?;
+        Ok(result)
+    }
+
+    /// Request a memory store operation.
+    pub async fn memory_store(&self, req: &MemoryStoreRequest) -> Result<TaskResult> {
+        let payload = serde_json::to_vec(req)?;
+        self.request("cortex.memory.store", &payload, Duration::from_secs(5))
+            .await
+    }
+
+    /// Request a memory search operation.
+    pub async fn memory_search(&self, req: &MemorySearchRequest) -> Result<TaskResult> {
+        let payload = serde_json::to_vec(req)?;
+        self.request("cortex.memory.search", &payload, Duration::from_secs(5))
+            .await
+    }
+
+    /// Request a memory ingest operation.
+    pub async fn memory_ingest(&self, req: &MemoryIngestRequest) -> Result<TaskResult> {
+        let payload = serde_json::to_vec(req)?;
+        self.request("cortex.memory.ingest", &payload, Duration::from_secs(10))
+            .await
+    }
+
+    /// Request LLM thinking with memory context.
+    pub async fn brain_think(&self, req: &BrainThinkRequest) -> Result<TaskResult> {
+        let payload = serde_json::to_vec(req)?;
+        // LLM calls can take a while — longer timeout
+        self.request("cortex.brain.think", &payload, Duration::from_secs(120))
+            .await
+    }
+
+    /// Request a health check from the Python brain service.
+    pub async fn brain_health(&self) -> Result<TaskResult> {
+        self.request("cortex.brain.health", b"{}", Duration::from_secs(5))
+            .await
     }
 
     /// Get a reference to the underlying NATS client.
