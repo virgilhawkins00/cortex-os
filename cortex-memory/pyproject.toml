@@ -1,0 +1,40 @@
+[project]
+name = "cortex-memory"
+version = "0.1.0"
+description = "The semantic memory and LLM brain for Cortex OS"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [{name = "Virgil Hawkins", email = "virgilhawkins00@users.noreply.github.com"}]
+
+dependencies = [
+    "nats-py>=2.9.0",
+    "chromadb>=0.5.0",
+    "ollama>=0.4.0",
+    "rank-bm25>=0.2.2",
+    "numpy>=1.26.0",
+    "aiosqlite>=0.20.0",
+    "pydantic>=2.0.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24.0",
+    "ruff>=0.8.0",
+]
+
+[build-system]
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
