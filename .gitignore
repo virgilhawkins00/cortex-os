@@ -1,0 +1,73 @@
+# ═══════════════════════════════════════
+# Cortex OS — .gitignore
+# ═══════════════════════════════════════
+
+# ── Secrets & Environment ──
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# ── Rust Build ──
+/target/
+**/*.rs.bk
+*.d
+
+# ── Python ──
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+*.egg
+*.egg-info/
+.eggs/
+
+# ── Node/JS ──
+node_modules/
+dist/
+build/
+.next/
+*.tsbuildinfo
+
+# ── IDE ──
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-*
+
+# ── OS ──
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ── Docker ──
+docker-compose.override.yml
+
+# ── Logs ──
+*.log
+logs/
+
+# ── Coverage ──
+coverage/
+htmlcov/
+.coverage
+*.gcno
+*.gcda
+lcov.info
+tarpaulin-report.html
+
+# ── ChromaDB local data ──
+chroma_data/
+
+# ── Ollama local models (if outside Docker) ──
+.ollama/

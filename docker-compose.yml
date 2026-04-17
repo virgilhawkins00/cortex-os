@@ -1,0 +1,44 @@
+services:
+  # ── Message Bus ──────────────────────
+  nats:
+    image: nats:2.10-alpine
+    container_name: cortex_nats
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    command: ["--auth", "${NATS_AUTH_TOKEN}"]
+    networks:
+      - cortex_net
+    restart: always
+
+  # ── Local LLM (Uncensored) ──────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: cortex_ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    networks:
+      - cortex_net
+    restart: always
+
+  # ── Vector Database ─────────────────
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: cortex_chromadb
+    volumes:
+      - chroma_data:/chroma/chroma
+    ports:
+      - "8000:8000"
+    networks:
+      - cortex_net
+    restart: always
+
+volumes:
+  ollama_data:
+  chroma_data:
+
+networks:
+  cortex_net:
+    driver: bridge
