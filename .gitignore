@@ -72,9 +72,8 @@ chroma_data/
 # ── Ollama local models (if outside Docker) ──
 .ollama/
 
-# ── Documents local data ──
-ROADMAP.md
-TODO.md
-ARCHITECTURE.md
-DOCS.md
-CORTEX.md
+# ── Local SQLite data ──
+data/
+*.db
+*.db-shm
+*.db-wal
