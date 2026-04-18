@@ -196,8 +196,8 @@ async fn run_interactive(
                     println!("  Usage: recall <search query>");
                     continue;
                 }
-                if let Some(ref bus) = bus {
-                    handle_recall(bus, arg_str).await;
+                if let Some(ref bus_shared) = bus {
+                    handle_recall(bus_shared, arg_str).await;
                 } else {
                     println!("  [OFFLINE] NATS not connected.");
                 }
@@ -306,8 +306,23 @@ async fn handle_remember(bus: &CortexBus, text: &str) {
         }
         Err(e) => {
             println!("  [ERROR] Memory service unavailable: {e}");
-                    println!("  {}", result.output);
-                }
+        }
+    }
+}
+
+/// Handle the `recall` command — search memories via NATS.
+async fn handle_recall(bus: &CortexBus, query: &str) {
+    let req = MemorySearchRequest {
+        query: query.to_string(),
+        top_k: 5,
+        wing: None,
+    };
+
+    match bus.memory_search(&req).await {
+        Ok(result) => {
+            if result.status == TaskStatus::Success {
+                println!("  Found memories for: \"{query}\"\n");
+                println!("  {}", result.output);
             } else if let Some(err) = &result.error {
                 println!("  [ERROR] {err}");
             }
@@ -347,7 +362,7 @@ async fn run_daemon(
             .args
             .unwrap_or_else(|| json!({ "command": req.prompt }));
 
-        let result = match registry.execute(tool_name, &args, &policy).await {
+        let result = match registry.execute(tool_name, args, &policy).await {
             Ok(output) => TaskResult {
                 id: req.id,
                 status: if output.success {
@@ -366,7 +381,7 @@ async fn run_daemon(
             },
         };
 
-        if let Err(e) = bus.publish_result("cortex.result", &result).await {
+        if let Err(e) = bus_arc.publish_result("cortex.result", &result).await {
             error!("Failed to publish result: {e}");
         }
     }
