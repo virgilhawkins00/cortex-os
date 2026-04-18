@@ -99,16 +99,16 @@ Um **sistema operacional autônomo para IA** que:
 ### TUI Dashboard (Rust — cortex-tui)
 - [x] Multi-tab layout (Agents, Memory, Tools, Config)
 - [x] Real-time log streaming via NATS (CortexBus)
-- [x] Agent status com spinners animados para "Thinking"
-- [x] Tool catalog com listagem visual de comandos
-- [x] System configuration status (NATS, Brain, Memory)
+- [x] Memory Explorer funcional com navegação de wings/rooms
+- [x] Tool catalog com documentação e detalhes de execução
+- [x] Status do sistema em tempo real (NATS, Brain, Memory Stats)
 
 ### Web Dashboard (React + Vite)
 - [x] Design system completo (Cyberpunk, Glassmorphism, HSL colors)
-- [x] Chat interface com real-time streaming (Zustand + nats.ws)
-- [x] Dashboard Grid: Activity / System Insight / Memory Stats
-- [x] Responsive layout com sidebar e topbar layouts
-- [x] NATS-over-WebSocket integration (Port 4223)
+- [x] Integração NATS-over-WebSocket (Porta 4223)
+- [x] Dashboard Grid: Activity / System Insight / Real-time Memory Stats
+- [x] Memory Explorer visual com grid de memórias
+- [x] Tool Catalog interativo com visualização de ferramentas core
 
 ### Infra & Segurança
 - [x] NATS WebSocket server enabled e exposed em Docker

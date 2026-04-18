@@ -66,6 +66,27 @@ pub struct MemoryIngestRequest {
     pub metadata: Option<serde_json::Value>,
 }
 
+/// Request to list memories via cortex.memory.list
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MemoryListRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wing: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub room: Option<String>,
+    #[serde(default = "default_limit")]
+    pub limit: usize,
+}
+
+fn default_limit() -> usize {
+    50
+}
+
+/// Request to delete a memory via cortex.memory.delete
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MemoryDeleteRequest {
+    pub memory_id: String,
+}
+
 /// Request LLM thinking via cortex.brain.think
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BrainThinkRequest {
@@ -172,6 +193,20 @@ impl CortexBus {
     pub async fn memory_ingest(&self, req: &MemoryIngestRequest) -> Result<TaskResult> {
         let payload = serde_json::to_vec(req)?;
         self.request("cortex.memory.ingest", &payload, Duration::from_secs(10))
+            .await
+    }
+
+    /// Request a memory list operation.
+    pub async fn memory_list(&self, req: &MemoryListRequest) -> Result<TaskResult> {
+        let payload = serde_json::to_vec(req)?;
+        self.request("cortex.memory.list", &payload, Duration::from_secs(5))
+            .await
+    }
+
+    /// Request a memory delete operation.
+    pub async fn memory_delete(&self, req: &MemoryDeleteRequest) -> Result<TaskResult> {
+        let payload = serde_json::to_vec(req)?;
+        self.request("cortex.memory.delete", &payload, Duration::from_secs(5))
             .await
     }
 

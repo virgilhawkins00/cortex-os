@@ -36,15 +36,18 @@ struct App {
     thinking_step: usize,
 
     // Memory State
-    memories: Vec<String>,
-    _memory_list_state: ListState,
+    memories: Vec<serde_json::Value>,
+    memory_list_state: ListState,
 
     // Tools State
     tool_list: Vec<String>,
+    tool_list_state: ListState,
+    registry: ToolRegistry,
 }
 
 impl App {
-    fn new(registry: &ToolRegistry) -> Self {
+    fn new(registry: ToolRegistry) -> Self {
+        let tools: Vec<String> = registry.list().into_iter().map(|s| s.to_string()).collect();
         Self {
             active_tab: Tab::Agents,
             logs: vec!["[SYSTEM] Cortex OS TUI initialized.".into()],
@@ -55,8 +58,10 @@ impl App {
             is_thinking: false,
             thinking_step: 0,
             memories: Vec::new(),
-            _memory_list_state: ListState::default(),
-            tool_list: registry.list().into_iter().map(|s| s.to_string()).collect(),
+            memory_list_state: ListState::default(),
+            tool_list: tools,
+            tool_list_state: ListState::default(),
+            registry,
         }
     }
 
@@ -89,7 +94,7 @@ async fn main() -> Result<()> {
     let registry = ToolRegistry::with_defaults(sandbox);
     let _perm_policy = PermissionPolicy::new(Permission::Full, ".");
     
-    let mut app = App::new(&registry);
+    let mut app = App::new(registry);
     let tick_rate = Duration::from_millis(100);
     let mut last_tick = Instant::now();
 
@@ -112,6 +117,51 @@ async fn main() -> Result<()> {
         if event::poll(timeout)? {
             if let Event::Key(key) = event::read()? {
                 match key.code {
+                    KeyCode::Up => {
+                        if app.active_tab == Tab::Tools {
+                            let i = match app.tool_list_state.selected() {
+                                Some(i) => if i == 0 { app.tool_list.len() - 1 } else { i - 1 },
+                                None => 0,
+                            };
+                            app.tool_list_state.select(Some(i));
+                        } else if app.active_tab == Tab::Memory {
+                            let i = match app.memory_list_state.selected() {
+                                Some(i) => if i == 0 { app.memories.len().saturating_sub(1) } else { i - 1 },
+                                None => 0,
+                            };
+                            app.memory_list_state.select(Some(i));
+                        }
+                    }
+                    KeyCode::Down => {
+                        if app.active_tab == Tab::Tools {
+                            let i = match app.tool_list_state.selected() {
+                                Some(i) => if i >= app.tool_list.len() - 1 { 0 } else { i + 1 },
+                                None => 0,
+                            };
+                            app.tool_list_state.select(Some(i));
+                        } else if app.active_tab == Tab::Memory {
+                            let i = match app.memory_list_state.selected() {
+                                Some(i) => if i >= app.memories.len().saturating_sub(1) { 0 } else { i + 1 },
+                                None => 0,
+                            };
+                            app.memory_list_state.select(Some(i));
+                        }
+                    }
+                    KeyCode::Char('f') => {
+                        // Refresh memory
+                        if app.active_tab == Tab::Memory {
+                          if let Some(ref b) = bus {
+                             app.push_log("[SYSTEM] Fetching memories...".into());
+                             if let Ok(res) = b.memory_list(&cortex_core::nats_bus::MemoryListRequest { wing: None, room: None, limit: 20 }).await {
+                                if let Ok(data) = serde_json::from_str::<serde_json::Value>(&res.output) {
+                                   if let Some(mems) = data["memories"].as_array() {
+                                      app.memories = mems.clone();
+                                   }
+                                }
+                             }
+                          }
+                        }
+                    }
                     KeyCode::Char('q') => app.should_quit = true,
                     KeyCode::Tab => app.next_tab(),
                     KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
@@ -247,26 +297,61 @@ fn render_agents(f: &mut Frame, area: Rect, app: &App) {
 fn render_memory(f: &mut Frame, area: Rect, app: &App) {
     let memories: Vec<ListItem> = app.memories
         .iter()
-        .map(|m| ListItem::new(m.as_str()))
+        .map(|m| {
+            let content = m["content"].as_str().unwrap_or("");
+            let created = m["created_at"].as_str().unwrap_or("?");
+            ListItem::new(format!("[{}] {}", &created[11..16], content))
+        })
         .collect();
 
+    let block = Block::default()
+        .title(" Memory Palace Explorer ([F] Refresh) ")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Cyan));
+        
     let list = List::new(memories)
-        .block(Block::default().title(" Memory Palace Explorer ").borders(Borders::ALL))
+        .block(block)
         .highlight_style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD))
         .highlight_symbol(">> ");
     
-    f.render_widget(list, area);
+    let mut state = app.memory_list_state.clone();
+    f.render_stateful_widget(list, area, &mut state);
 }
 
 fn render_tools(f: &mut Frame, area: Rect, app: &App) {
+    let chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(30), Constraint::Percentage(70)])
+        .split(area);
+
     let tools: Vec<ListItem> = app.tool_list
         .iter()
         .map(|t| ListItem::new(format!("⚙️ {}", t)))
         .collect();
 
     let list = List::new(tools)
-        .block(Block::default().title(" Tool Catalog ").borders(Borders::ALL));
-    f.render_widget(list, area);
+        .block(Block::default().title(" Tool Catalog ").borders(Borders::ALL))
+        .highlight_style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD))
+        .highlight_symbol("> ");
+
+    let mut state = app.tool_list_state.clone();
+    f.render_stateful_widget(list, chunks[0], &mut state);
+
+    // Detail Panel
+    let detail = if let Some(i) = app.tool_list_state.selected() {
+        let name = &app.tool_list[i];
+        format!(
+            "Tool: {}\n\nThis tool is part of the core Cortex OS toolset. Use it to perform autonomous actions in the workspace.\n\nStatus: [READY]\nPermissions: Required",
+            name
+        )
+    } else {
+        "Select a tool to view details...".to_string()
+    };
+
+    let detail_p = Paragraph::new(detail)
+        .wrap(Wrap { trim: true })
+        .block(Block::default().title(" Documentation ").borders(Borders::ALL).border_style(Style::default().fg(Color::Yellow)));
+    f.render_widget(detail_p, chunks[1]);
 }
 
 fn render_config(f: &mut Frame, area: Rect, _app: &App) {

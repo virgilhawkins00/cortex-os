@@ -61,7 +61,7 @@ function App() {
              <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>Policy: Full</span>
           </div>
           <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
-            Workspace: cortex-os/v0.1.0
+            Workspace: cortex-os/active
           </div>
         </div>
       </aside>
@@ -82,32 +82,69 @@ function App() {
         </header>
 
         <div className="dashboard-grid">
-          {/* ─── Chat Panel ─────────── */}
-          <section className="chat-panel glass">
-            <div className="messages" ref={scrollRef}>
-              {messages.map((m) => (
-                <div key={m.id} className={`message ${m.role}`}>
-                  <div style={{ marginBottom: '0.5rem', fontWeight: 700, fontSize: '0.75rem', opacity: 0.5 }}>
-                    {m.role.toUpperCase()} • {new Date(m.timestamp).toLocaleTimeString()}
+          {activeTab === 'agents' && (
+            <section className="chat-panel glass">
+              <div className="messages" ref={scrollRef}>
+                {messages.map((m) => (
+                  <div key={m.id} className={`message ${m.role}`}>
+                    <div style={{ marginBottom: '0.5rem', fontWeight: 700, fontSize: '0.75rem', opacity: 0.5 }}>
+                      {m.role.toUpperCase()} • {new Date(m.timestamp).toLocaleTimeString()}
+                    </div>
+                    {m.text}
                   </div>
-                  {m.text}
-                </div>
-              ))}
-            </div>
-            
-            <div className="input-area">
-              <input 
-                type="text" 
-                placeholder="Type a goal or command..." 
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-              />
-              <button className="btn-send" onClick={handleSend}>
-                <Send size={20} />
-              </button>
-            </div>
-          </section>
+                ))}
+              </div>
+              
+              <div className="input-area">
+                <input 
+                  type="text" 
+                  placeholder="Type a goal or command..." 
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+                />
+                <button className="btn-send" onClick={handleSend}>
+                  <Send size={20} />
+                </button>
+              </div>
+            </section>
+          )}
+
+          {activeTab === 'memory' && (
+            <section className="chat-panel glass" style={{ overflowY: 'auto', padding: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <h2 style={{ fontSize: '1.5rem' }}>Memory Palace Explorer</h2>
+                <button className="pill online" style={{ border: 'none', cursor: 'pointer' }} onClick={() => useNatsStore.getState().fetchMemories()}>
+                  REFRESH
+                </button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' }}>
+                {useNatsStore.getState().memories.map((m: any) => (
+                  <div key={m.id} className="glass" style={{ padding: '1rem', borderLeft: '4px solid var(--accent-cyan)' }}>
+                    <div style={{ fontSize: '0.7rem', opacity: 0.5, marginBottom: '0.5rem' }}>
+                      {new Date(m.created_at).toLocaleString()}
+                    </div>
+                    <div style={{ fontSize: '0.9rem', lineHeight: 1.4 }}>{m.content}</div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {activeTab === 'tools' && (
+            <section className="chat-panel glass" style={{ overflowY: 'auto', padding: '1rem' }}>
+              <h2 style={{ fontSize: '1.5rem', marginBottom: '1.5rem' }}>Tool Catalog</h2>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '1rem' }}>
+                {['FileTree', 'FileRead', 'FileWrite', 'WebSearch', 'WebRead', 'ShellExecute'].map(tool => (
+                  <div key={tool} className="glass" style={{ padding: '1.5rem', textAlign: 'center', cursor: 'default' }}>
+                    <Terminal size={32} style={{ margin: '0 auto 1rem', color: 'var(--accent-cyan)' }} />
+                    <div style={{ fontWeight: 600 }}>{tool}</div>
+                    <div style={{ fontSize: '0.75rem', marginTop: '0.5rem', opacity: 0.7 }}>CORE TOOL</div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* ─── Sidebar Info Panel ─────────── */}
           <section className="info-panel glass" style={{ padding: '1rem' }}>
@@ -125,12 +162,12 @@ function App() {
               <div className="glass" style={{ padding: '1rem', background: 'rgba(0,0,0,0.2)' }}>
                 <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>MEMORY STATS</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Triples</span>
-                  <span style={{ fontWeight: 600 }}>142</span>
+                  <span>Memories</span>
+                  <span style={{ fontWeight: 600 }}>{status.stats.memories}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.25rem' }}>
-                  <span>Points</span>
-                  <span style={{ fontWeight: 600 }}>2,840</span>
+                  <span>Triples (KG)</span>
+                  <span style={{ fontWeight: 600 }}>{status.stats.triples}</span>
                 </div>
               </div>
             </div>
