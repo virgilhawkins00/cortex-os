@@ -10,9 +10,13 @@ description = "The autonomous execution runtime for Cortex OS"
 tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+serde_yaml.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
 async-nats.workspace = true
+reqwest.workspace = true
+html2text.workspace = true
+uuid.workspace = true
 async-trait = "0.1"
 
 [lints]
