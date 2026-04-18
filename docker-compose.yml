@@ -35,9 +35,34 @@ services:
       - cortex_net
     restart: always
 
+  # ── Memory & Brain Service (Python) ─
+  cortex-memory:
+    build:
+      context: ./cortex-memory
+      dockerfile: Dockerfile
+    container_name: cortex_memory
+    volumes:
+      - memory_data:/app/data
+    environment:
+      - NATS_URL=nats://nats:4222
+      - NATS_AUTH_TOKEN=${NATS_AUTH_TOKEN}
+      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-dolphin-mistral:latest}
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+      - CORTEX_MEMORY_DB_PATH=/app/data/cortex.db
+    depends_on:
+      - nats
+      - chromadb
+      - ollama
+    networks:
+      - cortex_net
+    restart: unless-stopped
+
 volumes:
   ollama_data:
   chroma_data:
+  memory_data:
 
 networks:
   cortex_net:

@@ -57,9 +57,11 @@ CREATE TABLE IF NOT EXISTS memories (
     updated_at   TEXT NOT NULL
 );
 
+-- FTS5 table without content_rowid: stores content directly.
+-- Kept in sync via triggers. Simpler and more portable across SQLite versions.
 CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
+    id UNINDEXED,
     content,
-    content_rowid='rowid',
     tokenize='porter unicode61'
 );
 
@@ -68,18 +70,16 @@ CREATE INDEX IF NOT EXISTS idx_memories_room ON memories(room_id);
 CREATE INDEX IF NOT EXISTS idx_memories_created ON memories(created_at DESC);
 
 CREATE TRIGGER IF NOT EXISTS memories_ai AFTER INSERT ON memories BEGIN
-    INSERT INTO memories_fts(rowid, content) VALUES (NEW.rowid, NEW.content);
+    INSERT INTO memories_fts(id, content) VALUES (NEW.id, NEW.content);
 END;
 
 CREATE TRIGGER IF NOT EXISTS memories_ad AFTER DELETE ON memories BEGIN
-    INSERT INTO memories_fts(memories_fts, rowid, content)
-        VALUES('delete', OLD.rowid, OLD.content);
+    DELETE FROM memories_fts WHERE id = OLD.id;
 END;
 
-CREATE TRIGGER IF NOT EXISTS memories_au AFTER UPDATE ON memories BEGIN
-    INSERT INTO memories_fts(memories_fts, rowid, content)
-        VALUES('delete', OLD.rowid, OLD.content);
-    INSERT INTO memories_fts(rowid, content) VALUES (NEW.rowid, NEW.content);
+CREATE TRIGGER IF NOT EXISTS memories_au AFTER UPDATE OF content ON memories BEGIN
+    DELETE FROM memories_fts WHERE id = OLD.id;
+    INSERT INTO memories_fts(id, content) VALUES (NEW.id, NEW.content);
 END;
 """
 
@@ -369,8 +369,8 @@ class PalaceStorage:
         sql = """
             SELECT m.*
             FROM memories m
-            JOIN memories_fts fts ON m.rowid = fts.rowid
-            WHERE memories_fts MATCH ?
+            JOIN memories_fts fts ON m.id = fts.id
+            WHERE fts.content MATCH ?
             ORDER BY rank
             LIMIT ?
         """

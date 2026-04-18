@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 
 def _utcnow() -> datetime:
@@ -71,10 +71,11 @@ class Memory(BaseModel):
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
 
-    class Config:
-        """Pydantic configuration."""
+    model_config = ConfigDict()
 
-        json_encoders = {datetime: lambda v: v.isoformat()}
+    @field_serializer("created_at", "updated_at")
+    def serialize_dt(self, dt: datetime) -> str:
+        return dt.isoformat()
 
 
 class SearchResult(BaseModel):

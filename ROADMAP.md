@@ -33,28 +33,28 @@ Um **sistema operacional autônomo para IA** que:
 
 ---
 
-## 🟡 Fase 2 — Cérebro (Memória + LLM)
+## 🟢 Fase 2 — Cérebro (Memória + LLM) ✅
 
 **Objetivo:** O sistema lembra de tudo e pensa usando LLM local.
 
 ### cortex-memory (Python)
-- [ ] Palace storage engine (Wing → Room → Drawer) em SQLite
-- [ ] ChromaDB backend para embeddings vetoriais
-- [ ] Hybrid search (BM25 full-text + cosine similarity vetorial)
-- [ ] Knowledge Graph temporal (Entity → Predicate → Entity com timestamps)
-- [ ] AAAK-style index compression para scanning rápido por LLM
-- [ ] MCP Server (ou gRPC) para o Rust consumir via NATS
-- [ ] Ingest pipeline: texto → chunking → embedding → storage
-- [ ] Verbatim recall (nunca resumir, nunca parafrasear)
+- [x] Palace storage engine (Wing → Room → Drawer) em SQLite + FTS5
+- [x] ChromaDB backend para embeddings vetoriais
+- [x] Hybrid search (BM25 full-text + cosine similarity vetorial) com RRF
+- [x] Knowledge Graph temporal (Entity → Predicate → Entity com timestamps)
+- [x] AAAK-style index compression para scanning rápido por LLM
+- [x] NATS bridge (request/reply) para o Rust consumir
+- [x] Ingest pipeline: texto → chunking → embedding → storage
+- [x] Verbatim recall (nunca resumir, nunca parafrasear)
 
 ### Integração Ollama
-- [ ] Engine client em Python (ollama SDK)
-- [ ] Model router (fallback chain: local → API)
-- [ ] Prompt templates (system prompt + memory injection + tool calling)
-- [ ] Streaming de respostas via NATS para CLI/TUI
+- [x] Engine client em Python (ollama SDK)
+- [x] Model router (fallback chain: local → qualquer modelo disponível)
+- [x] Prompt templates (system prompt + memory injection + tool calling)
+- [x] Streaming de respostas via NATS para CLI/TUI
 
 ### Testes
-- [ ] pytest com fixtures para palace operations
+- [x] pytest com fixtures para palace operations (80 testes, 0 falhas)
 - [ ] Benchmark: search < 200ms em 10K documentos
 - [ ] Benchmark: ingest < 1s por documento
 

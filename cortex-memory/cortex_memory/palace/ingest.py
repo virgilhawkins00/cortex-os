@@ -23,6 +23,55 @@ _CHUNK_OVERLAP = 200
 _MIN_CHUNK_SIZE = 100
 
 
+def _chunk_text(text: str) -> list[str]:
+    """Split text into chunks if it exceeds the threshold.
+
+    Strategy:
+    1. If text is short enough, return as-is
+    2. Split by double newlines (paragraphs)
+    3. Merge small chunks with overlap for context continuity
+    """
+    if len(text) <= _CHUNK_THRESHOLD:
+        return [text]
+
+    paragraphs = re.split(r"\n\s*\n", text)
+    paragraphs = [p.strip() for p in paragraphs if p.strip()]
+
+    if not paragraphs:
+        return [text]
+
+    chunks: list[str] = []
+    current_chunk: list[str] = []
+    current_length = 0
+
+    for para in paragraphs:
+        if current_length + len(para) > _CHUNK_THRESHOLD and current_chunk:
+            chunk_text_val = "\n\n".join(current_chunk)
+            chunks.append(chunk_text_val)
+
+            overlap_text = chunk_text_val[-_CHUNK_OVERLAP:] if len(chunk_text_val) > _CHUNK_OVERLAP else ""
+            if overlap_text:
+                current_chunk = [overlap_text, para]
+                current_length = len(overlap_text) + len(para)
+            else:
+                current_chunk = [para]
+                current_length = len(para)
+        else:
+            current_chunk.append(para)
+            current_length += len(para)
+
+    if current_chunk:
+        chunk_text_val = "\n\n".join(current_chunk)
+        if len(chunk_text_val) >= _MIN_CHUNK_SIZE:
+            chunks.append(chunk_text_val)
+        elif chunks:
+            chunks[-1] += "\n\n" + chunk_text_val
+        else:
+            chunks.append(chunk_text_val)
+
+    return chunks if chunks else [text]
+
+
 class IngestPipeline:
     """Transforms raw text into stored, searchable memories.
 
@@ -149,56 +198,5 @@ class IngestPipeline:
 
     @staticmethod
     def _chunk_text(text: str) -> list[str]:
-        """Split text into chunks if it exceeds the threshold.
-
-        Strategy:
-        1. If text is short enough, return as-is
-        2. Split by double newlines (paragraphs)
-        3. If paragraphs are still too long, split by sentences
-        4. Merge small chunks with overlap for context continuity
-        """
-        if len(text) <= _CHUNK_THRESHOLD:
-            return [text]
-
-        # Split by paragraphs
-        paragraphs = re.split(r"\n\s*\n", text)
-        paragraphs = [p.strip() for p in paragraphs if p.strip()]
-
-        if not paragraphs:
-            return [text]
-
-        # Merge paragraphs into chunks of appropriate size
-        chunks: list[str] = []
-        current_chunk: list[str] = []
-        current_length = 0
-
-        for para in paragraphs:
-            if current_length + len(para) > _CHUNK_THRESHOLD and current_chunk:
-                # Emit current chunk
-                chunk_text = "\n\n".join(current_chunk)
-                chunks.append(chunk_text)
-
-                # Start new chunk with overlap from end of previous
-                overlap_text = chunk_text[-_CHUNK_OVERLAP:] if len(chunk_text) > _CHUNK_OVERLAP else ""
-                if overlap_text:
-                    current_chunk = [overlap_text, para]
-                    current_length = len(overlap_text) + len(para)
-                else:
-                    current_chunk = [para]
-                    current_length = len(para)
-            else:
-                current_chunk.append(para)
-                current_length += len(para)
-
-        # Don't forget the last chunk
-        if current_chunk:
-            chunk_text = "\n\n".join(current_chunk)
-            if len(chunk_text) >= _MIN_CHUNK_SIZE:
-                chunks.append(chunk_text)
-            elif chunks:
-                # Append tiny remainder to previous chunk
-                chunks[-1] += "\n\n" + chunk_text
-            else:
-                chunks.append(chunk_text)
-
-        return chunks if chunks else [text]
+        """Delegate to module-level _chunk_text."""
+        return _chunk_text(text)
