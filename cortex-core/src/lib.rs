@@ -2,6 +2,7 @@ pub mod nats_bus;
 pub mod permissions;
 pub mod sandbox;
 pub mod tools;
+pub mod swarm;
 pub mod agent;
 pub mod workflow;
 

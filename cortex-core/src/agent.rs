@@ -15,22 +15,32 @@ pub struct AgentStep {
     pub observation: Option<String>,
 }
 
+use std::sync::Arc;
+
 /// The Agent Orchestrator manages the autonomous Think-Act-Observe loop.
-pub struct Agent<'a> {
-    bus: &'a CortexBus,
-    registry: &'a ToolRegistry,
-    policy: &'a PermissionPolicy,
+pub struct Agent {
+    bus: Arc<CortexBus>,
+    registry: Arc<ToolRegistry>,
+    policy: Arc<PermissionPolicy>,
     max_steps: usize,
+    role: Option<String>,
 }
 
-impl<'a> Agent<'a> {
-    pub fn new(bus: &'a CortexBus, registry: &'a ToolRegistry, policy: &'a PermissionPolicy) -> Self {
+impl Agent {
+    pub fn new(bus: Arc<CortexBus>, registry: Arc<ToolRegistry>, policy: Arc<PermissionPolicy>) -> Self {
         Self {
             bus,
             registry,
             policy,
             max_steps: 10,
+            role: None,
         }
+    }
+
+    /// Set the specialized role for this agent (e.g., "devops").
+    pub fn with_role(mut self, role: &str) -> Self {
+        self.role = Some(role.to_string());
+        self
     }
 
     /// Set the maximum number of steps allowed for a single task.
@@ -62,6 +72,8 @@ impl<'a> Agent<'a> {
                 model: None,
                 include_memory: true,
                 stream: false,
+                metadata: None,
+                role: self.role.clone(),
             };
 
             let result = self.bus.brain_think(&req).await?;
@@ -88,8 +100,20 @@ impl<'a> Agent<'a> {
                 info!("Agent acting: {} with args {}", tool_name, tool_args);
                 step.action = Some(format!("{}({})", tool_name, tool_args));
 
+                // Audit: Tool Execution Start
+                let _ = self.bus.publish_audit_log(
+                    "agent", 
+                    "tool_execute_start", 
+                    json!({ 
+                        "tool": tool_name, 
+                        "args": tool_args,
+                        "role": self.role.clone().unwrap_or_else(|| "default".to_string())
+                    }),
+                    None
+                ).await;
+
                 // Execute tool
-                match self.registry.execute(tool_name, tool_args, self.policy).await {
+                match self.registry.execute(tool_name, tool_args, &self.policy).await {
                     Ok(output) => {
                         let obs = if output.success {
                             output.content
@@ -99,6 +123,14 @@ impl<'a> Agent<'a> {
                         
                         step.observation = Some(obs.clone());
                         history.push(step);
+
+                        // Audit: Tool Execution Success
+                        let _ = self.bus.publish_audit_log(
+                            "agent", 
+                            "tool_execute_success", 
+                            json!({ "tool": tool_name, "output_len": obs.len() }),
+                            None
+                        ).await;
 
                         // Update prompt for the next iteration (Act-Observe logic)
                         // We append the observation to give context to the brain.

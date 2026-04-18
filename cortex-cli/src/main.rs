@@ -1,5 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
+use cortex_core::agent::Agent;
 use cortex_core::nats_bus::{
     BrainThinkRequest, CortexBus, MemoryIngestRequest, MemorySearchRequest, TaskRequest,
     TaskResult, TaskStatus,
@@ -10,6 +11,7 @@ use cortex_core::tools::ToolRegistry;
 use futures::StreamExt;
 use serde_json::json;
 use std::io::{self, Write};
+use std::sync::Arc;
 use tracing::{error, info, warn};
 
 #[derive(Parser)]
@@ -50,11 +52,12 @@ async fn main() -> Result<()> {
     };
 
     let cwd = std::env::current_dir()?.to_string_lossy().to_string();
-    let policy = PermissionPolicy::new(perm, &cwd);
+    let policy = Arc::new(PermissionPolicy::new(perm, &cwd));
     let sandbox = Sandbox::default();
-    let registry = ToolRegistry::with_defaults(sandbox);
-
-    println!();
+    let bus = CortexBus::connect(&cli.nats_url, cli.nats_token.as_deref(), None).await?;
+    let bus_arc = Arc::new(bus);
+    let registry = Arc::new(ToolRegistry::with_defaults(sandbox, Arc::clone(&bus_arc)));
+    
     println!("  ██████╗ ██████╗ ██████╗ ████████╗███████╗██╗  ██╗");
     println!("  ██╔════╝██╔═══██╗██╔══██╗╚══██╔══╝██╔════╝╚██╗██╔╝");
     println!("  ██║     ██║   ██║██████╔╝   ██║   █████╗   ╚███╔╝ ");
@@ -68,9 +71,9 @@ async fn main() -> Result<()> {
     println!();
 
     if cli.daemon {
-        run_daemon(&cli.nats_url, cli.nats_token.as_deref(), &registry, &policy).await?;
+        run_daemon(&cli.nats_url, cli.nats_token.as_deref(), registry, policy).await?;
     } else {
-        run_interactive(&cli.nats_url, cli.nats_token.as_deref(), &registry, &policy).await?;
+        run_interactive(&cli.nats_url, cli.nats_token.as_deref(), registry, policy).await?;
     }
 
     Ok(())
@@ -80,11 +83,11 @@ async fn main() -> Result<()> {
 async fn run_interactive(
     nats_url: &str,
     nats_token: Option<&str>,
-    registry: &ToolRegistry,
-    policy: &PermissionPolicy,
+    registry: Arc<ToolRegistry>,
+    policy: Arc<PermissionPolicy>,
 ) -> Result<()> {
     // Try connecting to NATS for memory/brain features
-    let bus = match CortexBus::connect(nats_url, nats_token).await {
+    let bus = match CortexBus::connect(nats_url, nats_token, None).await {
         Ok(bus) => {
             println!("  NATS: connected ✓");
             // Check brain health
@@ -96,7 +99,7 @@ async fn run_interactive(
                     println!("  Brain: offline (start cortex-memory for LLM features)");
                 }
             }
-            Some(bus)
+            Some(Arc::new(bus))
         }
         Err(_) => {
             println!("  NATS: offline (memory/brain commands unavailable)");
@@ -142,11 +145,11 @@ async fn run_interactive(
             // ── Tool commands ────────────────────────
             "bash" => {
                 let args = json!({ "command": arg_str });
-                execute_tool(registry, "bash", args, policy).await;
+                execute_tool(&registry, "bash", args, &policy).await;
             }
             "file_read" => {
                 let args = json!({ "path": arg_str });
-                execute_tool(registry, "file_read", args, policy).await;
+                execute_tool(&registry, "file_read", args, &policy).await;
             }
             "file_write" => {
                 let file_parts: Vec<&str> = arg_str.splitn(2, ' ').collect();
@@ -155,14 +158,14 @@ async fn run_interactive(
                     continue;
                 }
                 let args = json!({ "path": file_parts[0], "content": file_parts[1] });
-                execute_tool(registry, "file_write", args, policy).await;
+                execute_tool(&registry, "file_write", args, &policy).await;
             }
             "tools" => {
                 println!("  Available tools: {:?}", registry.list());
             }
             "tree" => {
                 let args = json!({ "path": if arg_str.is_empty() { "." } else { arg_str } });
-                execute_tool(registry, "file_tree", args, policy).await;
+                execute_tool(&registry, "file_tree", args, &policy).await;
             }
 
             // ── Brain commands (require NATS + cortex-memory) ────
@@ -171,8 +174,8 @@ async fn run_interactive(
                     println!("  Usage: think <prompt>");
                     continue;
                 }
-                if let Some(ref bus) = bus {
-                    handle_think(bus, arg_str).await;
+                if let Some(ref bus_shared) = bus {
+                    handle_think(bus_shared, arg_str).await;
                 } else {
                     println!("  [OFFLINE] NATS not connected. Start NATS + cortex-memory first.");
                 }
@@ -204,8 +207,8 @@ async fn run_interactive(
                     println!("  Usage: agent <goal>");
                     continue;
                 }
-                if let Some(ref bus) = bus {
-                    handle_agent(bus, registry, policy, arg_str).await;
+                if let Some(ref bus_shared) = bus {
+                    handle_agent(Arc::clone(bus_shared), Arc::clone(&registry), Arc::clone(&policy), arg_str).await;
                 } else {
                     println!("  [OFFLINE] NATS not connected.");
                 }
@@ -248,6 +251,8 @@ async fn handle_think(bus: &CortexBus, prompt: &str) {
         model: None,
         include_memory: true,
         stream: false,
+        metadata: None,
+        role: None,
     };
 
     match bus.brain_think(&req).await {
@@ -301,49 +306,6 @@ async fn handle_remember(bus: &CortexBus, text: &str) {
         }
         Err(e) => {
             println!("  [ERROR] Memory service unavailable: {e}");
-        }
-    }
-}
-
-/// Handle the `recall` command — search memories via NATS.
-async fn handle_recall(bus: &CortexBus, query: &str) {
-    let req = MemorySearchRequest {
-        query: query.to_string(),
-        top_k: 5,
-        wing: None,
-    };
-
-    match bus.memory_search(&req).await {
-        Ok(result) => {
-            if result.status == TaskStatus::Success {
-                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&result.output) {
-                    if let Some(results) = parsed.get("results").and_then(|v| v.as_array()) {
-                        if results.is_empty() {
-                            println!("  No memories found for: \"{query}\"");
-                        } else {
-                            println!("  Found {} memories:\n", results.len());
-                            for (i, r) in results.iter().enumerate() {
-                                let content = r
-                                    .get("content")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("???");
-                                let score = r
-                                    .get("score")
-                                    .and_then(|v| v.as_f64())
-                                    .unwrap_or(0.0);
-                                // Truncate for display
-                                let display = if content.len() > 120 {
-                                    format!("{}...", &content[..120])
-                                } else {
-                                    content.to_string()
-                                };
-                                println!("  [{:}] (score: {:.3}) {display}", i + 1, score);
-                            }
-                        }
-                    } else {
-                        println!("  {}", result.output);
-                    }
-                } else {
                     println!("  {}", result.output);
                 }
             } else if let Some(err) = &result.error {
@@ -359,12 +321,13 @@ async fn handle_recall(bus: &CortexBus, query: &str) {
 /// Daemon mode — listen for tasks on NATS and execute them.
 async fn run_daemon(
     nats_url: &str,
-    token: Option<&str>,
-    registry: &ToolRegistry,
-    policy: &PermissionPolicy,
+    nats_token: Option<&str>,
+    registry: Arc<ToolRegistry>,
+    policy: Arc<PermissionPolicy>,
 ) -> Result<()> {
-    let bus = CortexBus::connect(nats_url, token).await?;
-    let mut sub = bus.subscribe("cortex.task").await?;
+    let bus = CortexBus::connect(nats_url, nats_token, None).await?;
+    let bus_arc = Arc::new(bus);
+    let mut sub = bus_arc.subscribe("cortex.task").await?;
 
     info!("Daemon mode: listening on 'cortex.task'...");
 
@@ -384,7 +347,7 @@ async fn run_daemon(
             .args
             .unwrap_or_else(|| json!({ "command": req.prompt }));
 
-        let result = match registry.execute(tool_name, args, policy).await {
+        let result = match registry.execute(tool_name, &args, &policy).await {
             Ok(output) => TaskResult {
                 id: req.id,
                 status: if output.success {
@@ -413,15 +376,15 @@ async fn run_daemon(
 
 /// Handle the `agent` command — run the autonomous Think-Act-Observe loop.
 async fn handle_agent(
-    bus: &CortexBus,
-    registry: &ToolRegistry,
-    policy: &PermissionPolicy,
+    bus: Arc<CortexBus>,
+    registry: Arc<ToolRegistry>,
+    policy: Arc<PermissionPolicy>,
     goal: &str,
 ) {
     println!("  🤖 Agent starting goal: \"{goal}\"");
     println!("  ─────────────────────────────────────────────────");
 
-    let agent = cortex_core::agent::Agent::new(bus, registry, policy);
+    let agent = Agent::new(bus, registry, policy);
 
     match agent.run(goal).await {
         Ok(result) => {

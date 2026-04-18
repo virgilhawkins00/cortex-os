@@ -4,6 +4,7 @@ members = [
     "cortex-core",
     "cortex-cli",
     "cortex-tui",
+    "cortex-gateway",
 ]
 
 [workspace.package]

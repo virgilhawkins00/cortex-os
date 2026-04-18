@@ -116,23 +116,22 @@ Um **sistema operacional autônomo para IA** que:
 
 ---
 
-## 🟡 Fase 5 — Gateway Multi-Canal
+## 🟢 Fase 5 — Gateway Multi-Canal ✅
 
 **Objetivo:** O Cortex OS responde em qualquer canal de comunicação.
 
 ### Gateway Core
-- [ ] Channel abstraction trait (send/receive messages)
-- [ ] Inbound message → Agent Task pipeline
-- [ ] Agent Result → Outbound message formatting
-- [ ] Session management (um contexto por conversa)
-- [ ] DM pairing/authentication (inspirado OpenClaw)
+- [x] `cortex-gateway` service (Rust)
+- [x] Channel abstraction trait (ChannelAdapter)
+- [x] Dispatcher: Inbound message → Agent Task (com metadados)
+- [x] Router: Agent Result → Outbound channel message
+- [x] Session management baseado em NATS routing
 
-### Channels (prioridade)
-- [ ] Discord bot (via serenity-rs)
-- [ ] Telegram bot (via teloxide)
-- [ ] WhatsApp (via Baileys/WWebJS bridge)
-- [ ] Slack (via Slack API)
-- [ ] WebChat embeddable
+### Channels (implementados)
+- [x] Discord bot (via serenity-rs)
+- [x] Telegram bot (via teloxide)
+- [ ] WhatsApp (ponte pendente - escalável via trait)
+- [ ] Slack (pendente)
 
 ### Testes
 - [ ] Mock channel adapter
@@ -140,20 +139,21 @@ Um **sistema operacional autônomo para IA** que:
 
 ---
 
-## 🟡 Fase 6 — Segurança & Hardening
+## 🟡 Fase 6 — Segurança & Hardening ✅ (IN PROGRESS)
 
-**Objetivo:** Pronto para produção.
+**Objetivo:** Pronto para produção com auditoria e mTLS.
 
 ### Security
-- [ ] mTLS entre componentes (NATS + internal services)
+- [x] mTLS entre componentes (NATS + internal services)
 - [ ] Secrets vault (encrypted .env at rest)
-- [ ] Audit log de todas as execuções de tools
-- [ ] Rate limiting no gateway
+- [x] Audit log de todas as execuções de tools
+- [x] Rate limiting no gateway (limite básico configurável)
 - [ ] Input sanitization (prompt injection defense)
 - [ ] Container sandbox (Docker) para execução untrusted
 - [ ] RBAC: definir quem pode usar quais tools
 
-### Reliability
+### Reliability & Config
+- [x] Retenção de logs configurável (Forever vs X dias)
 - [ ] Health checks para todos os serviços
 - [ ] Graceful shutdown em todos os binários
 - [ ] Reconnect automático no NATS
@@ -176,8 +176,8 @@ Um **sistema operacional autônomo para IA** que:
 - [ ] `setup.sh` — one-liner que instala tudo (detect OS, install deps, build)
 - [ ] Dockerfile multi-stage para binário Rust otimizado
 - [ ] Docker Compose all-in-one (um `up` e tudo roda)
+- [ ] **Executáveis Nativos**: Compilação para `.app` (macOS/Tuist) e `.exe` (Windows)
 - [ ] GitHub Actions CI/CD (test → build → release)
-- [ ] Release binaries (macOS arm64, macOS x86, Linux x86)
 - [ ] Homebrew formula (macOS)
 - [ ] AUR package (Arch Linux)
 
@@ -194,13 +194,24 @@ Um **sistema operacional autônomo para IA** que:
 
 ---
 
-## 🔮 Fase 8 — Ecossistema (Futuro)
+## 🟡 Fase 8 — Multi-Agent Swarm (Orquestração) 🚀
+
+**Objetivo:** Rodar múltiplos agentes simultâneos em tarefas complexas.
+
+- [ ] **Agent Swarm Manager**: Orquestrador central que coordena papéis (DevOps, Architect, Tech Lead, Software Engineer).
+- [ ] **Especialização de Papéis**: System prompts específicos para cada função.
+- [ ] **Inter-Agent Communication**: Agentes podem pedir ajuda ou delegar tarefas para outros agentes via NATS.
+- [ ] **Concorrência**: Interface (CLI/TUI/Web/Discord) capaz de monitorar múltiplos agentes trabalhando em paralelo.
+- [ ] **Finance Swarm**: Especialistas em mercado financeiro (Análise Técnica + Fundamentalista) validando trades em tempo real.
+
+---
+
+## 🔮 Fase 9 — Ecossistema (Futuro)
 
 **Objetivo:** Cortex OS como plataforma.
 
 - [ ] Plugin system (tools como crates/packages externos)
 - [ ] Skill marketplace (compartilhar workflows entre usuários)
-- [ ] Multi-agent coordination (múltiplos Cortex conversando entre si)
 - [ ] Voice interface (STT + TTS nativo)
 - [ ] Mobile companion app (React Native)
 - [ ] Integração ViaOptima (monitoramento logístico via Cortex)
@@ -214,13 +225,14 @@ Um **sistema operacional autônomo para IA** que:
 | Fase | Duração | Dependências |
 |---|---|---|
 | 1. Fundação | ✅ Completa | — |
-| 2. Cérebro | 1-2 semanas | Fase 1 |
-| 3. Autonomia | 2-3 semanas | Fase 2 |
-| 4. Interfaces | 1-2 semanas | Fase 3 |
-| 5. Gateway | 1-2 semanas | Fase 3 |
+| 2. Cérebro | ✅ Completa | Fase 1 |
+| 3. Autonomia | ✅ Completa | Fase 2 |
+| 4. Interfaces | ✅ Completa | Fase 3 |
+| 5. Gateway | ✅ Completa | Fase 3 |
 | 6. Segurança | 1 semana | Fase 3-5 |
 | 7. Deploy | 1 semana | Fase 6 |
-| 8. Ecossistema | Ongoing | Fase 7 |
+| 8. Swarm | 2 semanas | Fase 6 |
+| 9. Ecossistema | Ongoing | Fase 8 |
 
 **Total estimado até produto funcional (Fase 5): ~6-9 semanas**
 **Total até production-ready (Fase 7): ~8-12 semanas**

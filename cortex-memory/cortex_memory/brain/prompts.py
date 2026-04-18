@@ -70,6 +70,7 @@ class SystemPromptBuilder:
         tools: list[str] | None = None,
         knowledge_graph: str | None = None,
         extra_instructions: str | None = None,
+        role: str | None = None,
     ) -> str:
         """Build the complete system prompt.
 
@@ -78,8 +79,24 @@ class SystemPromptBuilder:
             tools: Available tool names.
             knowledge_graph: Pre-formatted knowledge graph context.
             extra_instructions: Additional task-specific instructions.
+            role: The specific agent role (e.g., devops, architect, tech_lead).
         """
-        parts = [_SYSTEM_IDENTITY.strip()]
+        identity = _SYSTEM_IDENTITY.strip()
+        
+        # Inject role specialization if provided
+        if role:
+            role_map = {
+                "devops": "You are currently specialized in DevOps and Infrastructure. Your goal is to optimize deployment, monitoring, and automation.",
+                "architect": "You are currently specialized in Software Architecture. Your goal is to design scalable, robust, and maintainable systems.",
+                "tech_lead": "You are currently the Technical Lead. Your goal is to coordinate the swarm, ensure code quality, and make high-level technical decisions.",
+                "sec_spec": "You are currently specialized in Cyber Security. Your goal is to identify vulnerabilities, harden systems, and ensure data privacy.",
+                "software_engineer": "You are currently specialized in Software Engineering. Your goal is to write clean, efficient, and well-tested code.",
+                "financial_analyst": "You are currently specialized in Financial Analysis. Your goal is to analyze market trends, technical indicators, and fundamental data to validate trades.",
+            }
+            specialization = role_map.get(role.lower(), f"You are currently specialized as a {role}.")
+            identity += f"\n\n**SPECIALIZATION**: {specialization}"
+
+        parts = [identity]
 
         # Inject memory context
         if memories:

@@ -17,6 +17,9 @@ class NATSConfig:
 
     url: str = field(default_factory=lambda: os.getenv("NATS_URL", "nats://127.0.0.1:4222"))
     token: str | None = field(default_factory=lambda: os.getenv("NATS_AUTH_TOKEN"))
+    ca_path: str | None = field(default_factory=lambda: os.getenv("NATS_CA_PATH"))
+    cert_path: str | None = field(default_factory=lambda: os.getenv("NATS_CERT_PATH"))
+    key_path: str | None = field(default_factory=lambda: os.getenv("NATS_KEY_PATH"))
 
 
 @dataclass(frozen=True)
@@ -47,6 +50,9 @@ class StorageConfig:
 
     db_path: Path = field(
         default_factory=lambda: Path(os.getenv("CORTEX_MEMORY_DB_PATH", "./data/cortex.db"))
+    )
+    audit_retention_days: int = field(
+        default_factory=lambda: int(os.getenv("AUDIT_LOG_RETENTION_DAYS", "30"))
     )
 
     def ensure_dir(self) -> None:

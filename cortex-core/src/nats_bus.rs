@@ -56,7 +56,6 @@ fn default_top_k() -> usize {
     5
 }
 
-/// Request to ingest text via cortex.memory.ingest
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MemoryIngestRequest {
     pub text: String,
@@ -64,6 +63,13 @@ pub struct MemoryIngestRequest {
     pub room: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TlsConfig {
+    pub ca_path: String,
+    pub cert_path: String,
+    pub key_path: String,
 }
 
 /// Request to list memories via cortex.memory.list
@@ -97,6 +103,10 @@ pub struct BrainThinkRequest {
     pub include_memory: bool,
     #[serde(default)]
     pub stream: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub role: Option<String>,
 }
 
 fn default_true() -> bool {
@@ -110,16 +120,25 @@ pub struct CortexBus {
 }
 
 impl CortexBus {
-    /// Connect to the NATS server with optional auth token.
-    pub async fn connect(url: &str, token: Option<&str>) -> Result<Self> {
-        let opts = if let Some(t) = token {
+    /// Connect to the NATS server with optional auth token and TLS config.
+    pub async fn connect(url: &str, token: Option<&str>, tls_config: Option<TlsConfig>) -> Result<Self> {
+        let mut opts = if let Some(t) = token {
             async_nats::ConnectOptions::new().token(t.into())
         } else {
             async_nats::ConnectOptions::new()
         };
 
+        if let Some(ref tls) = tls_config {
+            info!("Configuring mTLS for NATS connection...");
+            opts = opts.add_root_certificates(std::path::PathBuf::from(&tls.ca_path));
+            opts = opts.add_client_certificate(
+                std::path::PathBuf::from(&tls.cert_path),
+                std::path::PathBuf::from(&tls.key_path),
+            );
+        }
+
         let client = opts.connect(url).await?;
-        info!("Connected to NATS at {url}");
+        info!("Connected to NATS at {url} (mTLS: {})", tls_config.is_some());
         Ok(Self { client })
     }
 
@@ -228,5 +247,36 @@ impl CortexBus {
     #[must_use]
     pub fn client(&self) -> &Client {
         &self.client
+    }
+
+    /// Publish an audit log entry to NATS
+    pub async fn publish_audit_log(&self, component: &str, event: &str, metadata: serde_json::Value, user_id: Option<&str>) -> Result<()> {
+        let payload = serde_json::json!({
+            "component": component,
+            "event": event,
+            "metadata": metadata,
+            "user_id": user_id,
+        });
+        let bytes = serde_json::to_vec(&payload)?;
+        self.client.publish("cortex.audit.log", bytes.into()).await?;
+        Ok(())
+    }
+
+    /// Publish raw bytes to a subject.
+    pub async fn publish(&self, subject: &str, payload: Vec<u8>) -> Result<()> {
+        self.client.publish(subject.to_string(), payload.into()).await?;
+        Ok(())
+    }
+
+    /// Perform a generic NATS request/reply returning raw bytes.
+    pub async fn request_bytes(&self, subject: &str, payload: &[u8]) -> Result<Vec<u8>> {
+        match tokio::time::timeout(
+            Duration::from_secs(300),
+            self.client.request(subject.to_string(), payload.to_vec().into())
+        ).await {
+            Ok(Ok(resp)) => Ok(resp.payload.to_vec()),
+            Ok(Err(e)) => Err(anyhow::anyhow!("NATS request failed: {}", e)),
+            Err(_) => Err(anyhow::anyhow!("NATS request timed out")),
+        }
     }
 }

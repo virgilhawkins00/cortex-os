@@ -12,8 +12,10 @@ use ratatui::{
     prelude::*,
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Tabs, Wrap},
 };
+use ratatui::Terminal;
 use std::io::stdout;
-use std::time::{Duration, Instant};
+use std::sync::Arc;
+use tokio::time::{Duration, Instant};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Tab {
@@ -42,11 +44,11 @@ struct App {
     // Tools State
     tool_list: Vec<String>,
     tool_list_state: ListState,
-    registry: ToolRegistry,
+    registry: Arc<ToolRegistry>,
 }
 
 impl App {
-    fn new(registry: ToolRegistry) -> Self {
+    fn new(registry: Arc<ToolRegistry>) -> Self {
         let tools: Vec<String> = registry.list().into_iter().map(|s| s.to_string()).collect();
         Self {
             active_tab: Tab::Agents,
@@ -88,11 +90,22 @@ async fn main() -> Result<()> {
     stdout().execute(EnterAlternateScreen)?;
 
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
-    
+
+    // NATS connection (separate thread/task for now)
+    let nats_url = "nats://127.0.0.1:4222";
+    let bus_arc = if let Ok(bus) = CortexBus::connect(nats_url, None, None).await {
+        Arc::new(bus)
+    } else {
+        // Fallback or handle offline
+        // For TUI we can skip tools that need NATS or use a disconnected client
+        // For now, if we can't connect, we just panic to reveal the issue during dev
+        panic!("Failed to connect to NATS at {nats_url}. Ensure NATS server is running.")
+    };
+
     // Core engine setup
     let sandbox = Sandbox::default();
-    let registry = ToolRegistry::with_defaults(sandbox);
-    let _perm_policy = PermissionPolicy::new(Permission::Full, ".");
+    let registry = Arc::new(ToolRegistry::with_defaults(sandbox, Arc::clone(&bus_arc)));
+    let _perm_policy = Arc::new(PermissionPolicy::new(Permission::Full, "."));
     
     let mut app = App::new(registry);
     let tick_rate = Duration::from_millis(100);
@@ -100,7 +113,7 @@ async fn main() -> Result<()> {
 
     // NATS connection (separate thread/task for now)
     let nats_url = "nats://127.0.0.1:4222";
-    let bus = CortexBus::connect(nats_url, None).await.ok();
+    let bus = CortexBus::connect(nats_url, None, None).await.ok();
     if let Some(ref b) = bus {
         app.nats_connected = true;
         if let Ok(health) = b.brain_health().await {
@@ -172,13 +185,10 @@ async fn main() -> Result<()> {
                             let msg = app.input.clone();
                             app.push_log(format!("▸ {msg}"));
                             app.input.clear();
-                            
-                            // Simulate action
+
                             if msg.starts_with("search ") {
-                               let query = msg.replace("search ", "");
-                               if let Some(ref _b) = bus {
-                                   app.push_log(format!("[MEMORY] Searching for: {query}"));
-                               }
+                                let query = msg.replace("search ", "");
+                                app.push_log(format!("[MEMORY] Searching for: {query}"));
                             }
                         }
                     }

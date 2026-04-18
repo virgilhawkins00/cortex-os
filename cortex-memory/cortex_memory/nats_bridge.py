@@ -85,13 +85,23 @@ class NATSBridge:
         self._shutdown_event = asyncio.Event()
 
     async def connect(self) -> None:
-        """Connect to the NATS server."""
+        """Connect to the NATS server with optional mTLS."""
         connect_opts: dict[str, Any] = {"servers": [self._config.url]}
         if self._config.token:
             connect_opts["token"] = self._config.token
 
+        if self._config.ca_path or self._config.cert_path:
+            import ssl
+            logger.info("Configuring SSL/TLS for NATS bridge...")
+            ssl_ctx = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH)
+            if self._config.ca_path:
+                ssl_ctx.load_verify_locations(cafile=self._config.ca_path)
+            if self._config.cert_path and self._config.key_path:
+                ssl_ctx.load_cert_chain(certfile=self._config.cert_path, keyfile=self._config.key_path)
+            connect_opts["tls"] = ssl_ctx
+
         self._nc = await nats.connect(**connect_opts)
-        logger.info("NATS bridge connected to %s", self._config.url)
+        logger.info("NATS bridge connected to %s (mTLS: %s)", self._config.url, "tls" in connect_opts)
 
     async def disconnect(self) -> None:
         """Gracefully disconnect from NATS."""
@@ -127,6 +137,7 @@ class NATSBridge:
         await self.nc.subscribe("cortex.memory.ingest", cb=self._handle_memory_ingest)
         await self.nc.subscribe("cortex.brain.think", cb=self._handle_brain_think)
         await self.nc.subscribe("cortex.brain.health", cb=self._handle_brain_health)
+        await self.nc.subscribe("cortex.audit.log", cb=self._handle_audit_log)
 
         logger.info("NATS bridge serving — listening on cortex.memory.* and cortex.brain.*")
 
@@ -307,6 +318,7 @@ class NATSBridge:
                 prompt=prompt,
                 model=model,
                 include_memory=include_memory,
+                role=data.get("role"),
             )
 
             response = {
@@ -314,6 +326,7 @@ class NATSBridge:
                 "model": result["model"],
                 "memories_used": result["memories_used"],
                 "tool_call": result["tool_call"],
+                "metadata": data.get("metadata"),
             }
             await msg.respond(_ok_response(response))
             logger.info(
@@ -346,3 +359,21 @@ class NATSBridge:
         except Exception as e:
             logger.error("brain.health failed: %s", e)
             await msg.respond(_err_response(str(e)))
+
+    async def _handle_audit_log(self, msg: nats.aio.client.Msg) -> None:
+        """Handle cortex.audit.log — persist an audit event."""
+        try:
+            data = json.loads(msg.data)
+            component = data.get("component", "unknown")
+            event_type = data.get("event", "unknown")
+            metadata = data.get("metadata", {})
+            user_id = data.get("user_id")
+
+            await self._storage.store_audit_log(
+                component=component,
+                event_type=event_type,
+                metadata=metadata,
+                user_id=user_id,
+            )
+        except Exception as e:
+            logger.error("audit.log failed: %s", e)

@@ -2,11 +2,14 @@ pub mod bash;
 pub mod file;
 pub mod tree;
 pub mod web;
+pub mod delegation;
 
 use anyhow::Result;
 use serde_json::Value;
 use std::collections::HashMap;
 
+use std::sync::Arc;
+use crate::nats_bus::{CortexBus, TaskStatus};
 use crate::permissions::PermissionPolicy;
 use crate::sandbox::Sandbox;
 
@@ -38,7 +41,7 @@ pub struct ToolRegistry {
 
 impl ToolRegistry {
     /// Create a new registry with all built-in tools.
-    pub fn with_defaults(sandbox: Sandbox) -> Self {
+    pub fn with_defaults(sandbox: Sandbox, bus: Arc<CortexBus>) -> Self {
         let mut tools: HashMap<String, Box<dyn Tool>> = HashMap::new();
 
         let bash_tool = bash::BashTool::new(sandbox);
@@ -58,6 +61,9 @@ impl ToolRegistry {
 
         let web_search = web::WebSearchTool::new();
         tools.insert(web_search.name().to_string(), Box::new(web_search));
+
+        let delegate = delegation::DelegateTool::new(bus);
+        tools.insert(delegate.name().to_string(), Box::new(delegate));
 
         Self { tools }
     }

@@ -26,6 +26,10 @@ impl PermissionPolicy {
         }
     }
 
+    pub fn full() -> Self {
+        Self::new(Permission::Full, ".")
+    }
+
     /// Check if a file write is allowed under current policy.
     #[must_use]
     pub fn can_write(&self, path: &str) -> bool {

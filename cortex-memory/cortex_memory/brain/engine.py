@@ -63,6 +63,7 @@ class BrainEngine:
         model: str | None = None,
         include_memory: bool = True,
         task_type: str = "default",
+        **kwargs,
     ) -> dict:
         """Process a prompt with full memory context and LLM reasoning.
 
@@ -108,6 +109,7 @@ class BrainEngine:
             memories=memory_contents if memory_contents else None,
             tools=self._tools if self._tools else None,
             knowledge_graph=kg_context,
+            role=kwargs.get("role"),
         )
 
         # Call LLM

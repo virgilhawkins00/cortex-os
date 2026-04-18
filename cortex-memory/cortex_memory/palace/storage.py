@@ -78,9 +78,20 @@ CREATE TRIGGER IF NOT EXISTS memories_ad AFTER DELETE ON memories BEGIN
 END;
 
 CREATE TRIGGER IF NOT EXISTS memories_au AFTER UPDATE OF content ON memories BEGIN
-    DELETE FROM memories_fts WHERE id = OLD.id;
     INSERT INTO memories_fts(id, content) VALUES (NEW.id, NEW.content);
 END;
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id          TEXT PRIMARY KEY,
+    timestamp   TEXT NOT NULL,
+    component   TEXT NOT NULL,
+    event_type  TEXT NOT NULL,
+    metadata    TEXT DEFAULT '{}',
+    user_id     TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_logs(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_component ON audit_logs(component);
 """
 
 
@@ -354,6 +365,43 @@ class PalaceStorage:
         async with self.db.execute("SELECT COUNT(*) FROM memories") as cursor:
             row = await cursor.fetchone()
             return row[0] if row else 0
+
+    # ── Audit Logs ──────────────────────────────────────────
+
+    async def store_audit_log(
+        self,
+        component: str,
+        event_type: str,
+        metadata: dict | None = None,
+        user_id: str | None = None,
+    ) -> str:
+        """Store a new audit log entry."""
+        log_id = uuid4().hex
+        timestamp = datetime.now(timezone.utc).isoformat()
+        await self.db.execute(
+            "INSERT INTO audit_logs (id, timestamp, component, event_type, metadata, user_id) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (log_id, timestamp, component, event_type, json.dumps(metadata or {}), user_id),
+        )
+        await self.db.commit()
+        return log_id
+
+    async def list_audit_logs(self, limit: int = 100) -> list[dict]:
+        """List recent audit logs."""
+        async with self.db.execute(
+            "SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT ?", (limit,)
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [dict(r) for r in rows]
+
+    async def prune_audit_logs(self, days: int = 30) -> int:
+        """Delete audit logs older than X days."""
+        cursor = await self.db.execute(
+            "DELETE FROM audit_logs WHERE datetime(timestamp) < datetime('now', ?)",
+            (f"-{days} days",),
+        )
+        await self.db.commit()
+        return cursor.rowcount
 
     # ── Full-Text Search ──────────────────────────────────────
 
