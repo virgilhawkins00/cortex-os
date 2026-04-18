@@ -2,6 +2,8 @@ pub mod nats_bus;
 pub mod permissions;
 pub mod sandbox;
 pub mod tools;
+pub mod agent;
+pub mod workflow;
 
 /// Re-export core types
 pub use nats_bus::CortexBus;

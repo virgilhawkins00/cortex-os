@@ -1,5 +1,7 @@
 pub mod bash;
 pub mod file;
+pub mod tree;
+pub mod web;
 
 use anyhow::Result;
 use serde_json::Value;
@@ -47,6 +49,15 @@ impl ToolRegistry {
 
         let file_write = file::FileWriteTool;
         tools.insert(file_write.name().to_string(), Box::new(file_write));
+
+        let tree_tool = tree::FileTreeTool;
+        tools.insert(tree_tool.name().to_string(), Box::new(tree_tool));
+
+        let web_read = web::WebReadTool::new();
+        tools.insert(web_read.name().to_string(), Box::new(web_read));
+
+        let web_search = web::WebSearchTool::new();
+        tools.insert(web_search.name().to_string(), Box::new(web_search));
 
         Self { tools }
     }

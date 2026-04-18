@@ -112,6 +112,8 @@ async fn run_interactive(
     println!("    think <prompt>         — Ask the LLM (with memory context)");
     println!("    remember <text>        — Store a memory");
     println!("    recall <query>         — Search memories");
+    println!("    agent <goal>           — Start an autonomous task loop");
+    println!("    tree [path]            — Show file structure");
     println!("    tools                  — List available tools");
     println!("    exit                   — Quit");
     println!();
@@ -158,6 +160,10 @@ async fn run_interactive(
             "tools" => {
                 println!("  Available tools: {:?}", registry.list());
             }
+            "tree" => {
+                let args = json!({ "path": if arg_str.is_empty() { "." } else { arg_str } });
+                execute_tool(registry, "file_tree", args, policy).await;
+            }
 
             // ── Brain commands (require NATS + cortex-memory) ────
             "think" => {
@@ -189,6 +195,17 @@ async fn run_interactive(
                 }
                 if let Some(ref bus) = bus {
                     handle_recall(bus, arg_str).await;
+                } else {
+                    println!("  [OFFLINE] NATS not connected.");
+                }
+            }
+            "agent" => {
+                if arg_str.is_empty() {
+                    println!("  Usage: agent <goal>");
+                    continue;
+                }
+                if let Some(ref bus) = bus {
+                    handle_agent(bus, registry, policy, arg_str).await;
                 } else {
                     println!("  [OFFLINE] NATS not connected.");
                 }
@@ -392,4 +409,30 @@ async fn run_daemon(
     }
 
     Ok(())
+}
+
+/// Handle the `agent` command — run the autonomous Think-Act-Observe loop.
+async fn handle_agent(
+    bus: &CortexBus,
+    registry: &ToolRegistry,
+    policy: &PermissionPolicy,
+    goal: &str,
+) {
+    println!("  🤖 Agent starting goal: \"{goal}\"");
+    println!("  ─────────────────────────────────────────────────");
+
+    let agent = cortex_core::agent::Agent::new(bus, registry, policy);
+
+    match agent.run(goal).await {
+        Ok(result) => {
+            println!("\n  ✨ Goal achieved!");
+            println!("  ─────────────────────────────────────────────────");
+            println!("  Final Answer:\n");
+            println!("  {}", result.final_answer);
+            println!("\n  Steps taken: {}", result.steps.len());
+        }
+        Err(e) => {
+            println!("\n  [ERROR] Agent failed: {e}");
+        }
+    }
 }
