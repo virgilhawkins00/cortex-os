@@ -28,7 +28,7 @@ crossterm = "0.28"
 ratatui = "0.29"
 reqwest = { version = "0.12", features = ["rustls-tls", "json"], default-features = false }
 html2text = "0.12"
-uuid = { version = "1", features = ["v4"] }
+uuid = { version = "1", features = ["v4", "serde"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

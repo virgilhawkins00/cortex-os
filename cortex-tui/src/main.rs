@@ -48,6 +48,7 @@ struct App {
 
     // Swarm State
     active_agents: Vec<serde_json::Value>,
+    active_squads: Vec<serde_json::Value>,
 }
 
 impl App {
@@ -68,6 +69,7 @@ impl App {
             tool_list_state: ListState::default(),
             registry,
             active_agents: Vec::new(),
+            active_squads: Vec::new(),
         }
     }
 
@@ -217,11 +219,14 @@ async fn main() -> Result<()> {
             if app.nats_connected && app.active_tab == Tab::Agents {
                if let Some(ref b) = bus {
                   if let Ok(res) = b.request("cortex.swarm.status", &[], Duration::from_millis(500)).await {
-                     if let Ok(data) = serde_json::from_str::<serde_json::Value>(&res.output) {
-                        if let Some(agents) = data["agents"].as_array() {
-                           app.active_agents = agents.clone();
-                        }
-                     }
+                      if let Ok(data) = serde_json::from_str::<serde_json::Value>(&res.output) {
+                         if let Some(agents) = data["agents"].as_array() {
+                            app.active_agents = agents.clone();
+                         }
+                         if let Some(squads) = data["squads"].as_array() {
+                            app.active_squads = squads.clone();
+                         }
+                      }
                   }
                }
             }
@@ -325,20 +330,48 @@ fn render_agents(f: &mut Frame, area: Rect, app: &App) {
         })
         .collect();
 
+    let mut squad_items: Vec<ListItem> = Vec::new();
+    for squad in &app.active_squads {
+        let name = squad["name"].as_str().unwrap_or("Unnamed Squad");
+        squad_items.push(ListItem::new(format!("👥 {}", name.to_uppercase())).style(Style::default().fg(Color::Yellow).bold()));
+        
+        if let Some(agents) = squad["agents"].as_array() {
+            for agent in agents {
+                let role = agent["role"].as_str().unwrap_or("?");
+                let status = agent["status"].as_str().unwrap_or("?");
+                let status_icon = match status {
+                    "starting" => "⏳",
+                    "running" => "⚙️",
+                    "finished" => "✅",
+                    _ => "❓",
+                };
+                squad_items.push(ListItem::new(format!("  {} {} ({})", status_icon, role, status)));
+            }
+        }
+    }
+
     let agents_list = List::new(agents_items)
         .block(Block::default().title(swarm_title).borders(Borders::ALL).border_style(Style::default().fg(Color::Cyan)));
     
+    let squads_list = List::new(squad_items)
+        .block(Block::default().title(format!(" Parallel Squads ({}) ", app.active_squads.len())).borders(Borders::ALL).border_style(Style::default().fg(Color::Yellow)));
+
     let status_p = Paragraph::new(status_text)
         .style(Style::default().fg(Color::Yellow))
         .block(Block::default().title(" Status ").borders(Borders::ALL));
 
     let right_chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(3), Constraint::Min(5)])
+        .constraints([
+            Constraint::Length(3), // Status
+            Constraint::Percentage(40), // Agents
+            Constraint::Percentage(60), // Squads
+        ])
         .split(layout[1]);
 
     f.render_widget(status_p, right_chunks[0]);
     f.render_widget(agents_list, right_chunks[1]);
+    f.render_widget(squads_list, right_chunks[2]);
 }
 
 fn render_memory(f: &mut Frame, area: Rect, app: &App) {

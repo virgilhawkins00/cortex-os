@@ -1,6 +1,4 @@
-use anyhow::Result;
 use clap::Parser;
-use cortex_core::agent::Agent;
 use cortex_core::nats_bus::{
     BrainThinkRequest, CortexBus, MemoryIngestRequest, MemorySearchRequest, TaskRequest,
     TaskResult, TaskStatus,
@@ -129,6 +127,7 @@ async fn run_interactive(
     println!("    remember <text>        — Store a memory");
     println!("    recall <query>         — Search memories");
     println!("    agent [role] <goal>    — Start an autonomous task loop");
+    println!("    squad <name>           — Start a parallel squad of agents");
     println!("    tree [path]            — Show file structure");
     println!("    tools                  — List available tools");
     println!("    exit                   — Quit");
@@ -222,6 +221,23 @@ async fn run_interactive(
                 }
                 if let Some(ref bus_shared) = bus {
                     handle_agent(
+                        Arc::clone(bus_shared), 
+                        Arc::clone(&registry), 
+                        Arc::clone(&agent_registry),
+                        Arc::clone(&policy), 
+                        arg_str
+                    ).await;
+                } else {
+                    println!("  [OFFLINE] NATS not connected.");
+                }
+            }
+            "squad" => {
+                if arg_str.is_empty() {
+                    println!("  Usage: squad <name>");
+                    continue;
+                }
+                if let Some(ref bus_shared) = bus {
+                    handle_squad(
                         Arc::clone(bus_shared), 
                         Arc::clone(&registry), 
                         Arc::clone(&agent_registry),
@@ -448,6 +464,29 @@ async fn handle_agent(
         }
         Err(e) => {
             println!("\n  [ERROR] Agent failed: {e}");
+        }
+    }
+}
+
+/// Handle the `squad` command — run multiple agents in parallel.
+async fn handle_squad(
+    bus: Arc<CortexBus>,
+    registry: Arc<ToolRegistry>,
+    agent_registry: Arc<AgentRegistry>,
+    policy: Arc<PermissionPolicy>,
+    squad_name: &str,
+) {
+    println!("  👥 Launching Squad: {}...", squad_name);
+    
+    let swarm = SwarmManager::new(bus, registry, agent_registry, policy);
+
+    match swarm.spawn_squad(squad_name).await {
+        Ok(_) => {
+            println!("  ✓ Squad runners spawned in background.");
+            println!("  Check TUI or NATS logs for real-time activity.");
+        }
+        Err(e) => {
+            println!("  [ERROR] Failed to launch squad: {e}");
         }
     }
 }

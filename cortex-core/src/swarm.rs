@@ -14,6 +14,7 @@ use crate::permissions::PermissionPolicy;
 use crate::tools::ToolRegistry;
 
 use crate::registry::AgentRegistry;
+use crate::squad::{Squad, ActiveSquad, ActiveSquadAgent};
 
 /// An active agent in the swarm.
 pub struct SwarmAgent {
@@ -29,6 +30,7 @@ pub struct SwarmManager {
     agent_registry: Arc<AgentRegistry>,
     policy: Arc<PermissionPolicy>,
     active_agents: Arc<Mutex<HashMap<Uuid, String>>>, // ID -> Role
+    active_squads: Arc<Mutex<HashMap<Uuid, ActiveSquad>>>, // ID -> Squad State
 }
 
 impl SwarmManager {
@@ -44,6 +46,7 @@ impl SwarmManager {
             agent_registry,
             policy,
             active_agents: Arc::new(Mutex::new(HashMap::new())),
+            active_squads: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -75,6 +78,69 @@ impl SwarmManager {
         }
 
         Ok(result)
+    }
+
+    /// Spawn a squad of agents in parallel.
+    pub async fn spawn_squad(&self, squad_name: &str) -> Result<Uuid> {
+        let squad = {
+            let squads = self.agent_registry.squads.read().unwrap();
+            squads.get(squad_name).cloned().ok_or_else(|| anyhow::anyhow!("Squad not found: {}", squad_name))?
+        };
+
+        let squad_id = Uuid::new_v4();
+        let mut active_squad = ActiveSquad {
+            id: squad_id,
+            name: squad.name.clone(),
+            agents: Vec::new(),
+        };
+
+        for agent_def in &squad.agents {
+            let agent_id = Uuid::new_v4();
+            active_squad.agents.push(ActiveSquadAgent {
+                id: agent_id,
+                role: agent_def.role.clone(),
+                goal: agent_def.goal.clone(),
+                status: "starting".into(),
+            });
+        }
+
+        let agent_ids: Vec<Uuid> = active_squad.agents.iter().map(|a| a.id).collect();
+
+        {
+            let mut squads = self.active_squads.lock().await;
+            squads.insert(squad_id, active_squad);
+        }
+
+        // Spawn actual tasks
+        for (i, agent_def) in squad.agents.into_iter().enumerate() {
+            let manager = self.clone();
+            let squad_id = squad_id;
+            let agent_id = agent_ids[i];
+            
+            tokio::spawn(async move {
+                {
+                    let mut squads = manager.active_squads.lock().await;
+                    if let Some(s) = squads.get_mut(&squad_id) {
+                        if let Some(a) = s.agents.iter_mut().find(|a| a.id == agent_id) {
+                            a.status = "running".into();
+                        }
+                    }
+                }
+
+                let _ = manager.spawn_agent(&agent_def.role, &agent_def.goal).await;
+
+                {
+                    let mut squads = manager.active_squads.lock().await;
+                    if let Some(s) = squads.get_mut(&squad_id) {
+                        if let Some(a) = s.agents.iter_mut().find(|a| a.id == agent_id) {
+                            a.status = "finished".into();
+                        }
+                    }
+                }
+            });
+        }
+
+        Ok(squad_id)
     }
 
     /// Helper to prepare a ToolRegistry with default, global, and specialized tools.
@@ -215,13 +281,20 @@ impl SwarmManager {
         while let Some(msg) = sub.next().await {
             if let Some(reply) = msg.reply {
                 let agents = self.list_active().await;
+                let squads = self.active_squads.lock().await.clone();
+
                 // Convert Map<Uuid, String> to Vec<SwarmAgent> for serialization
                 let swarm_agents: Vec<Value> = agents.into_iter()
                     .map(|(id, role)| json!({ "id": id.to_string(), "role": role }))
                     .collect();
                 
+                let squad_list: Vec<Value> = squads.into_values()
+                    .map(|s| serde_json::to_value(s).unwrap())
+                    .collect();
+
                 let resp = json!({
                     "agents": swarm_agents,
+                    "squads": squad_list,
                     "count": swarm_agents.len()
                 });
                 

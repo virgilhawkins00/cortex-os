@@ -25,8 +25,11 @@ pub struct AgentConfig {
     pub discovered_scripts: Vec<PathBuf>,
 }
 
+use crate::squad::Squad;
+
 pub struct AgentRegistry {
     pub agents: Arc<RwLock<HashMap<String, AgentConfig>>>, // Key is the role name
+    pub squads: Arc<RwLock<HashMap<String, Squad>>>,       // Key is the squad name
     pub global_mcp_servers: Arc<RwLock<Vec<McpConfig>>>,
 }
 
@@ -34,6 +37,7 @@ impl AgentRegistry {
     pub fn new() -> Self {
         Self {
             agents: Arc::new(RwLock::new(HashMap::new())),
+            squads: Arc::new(RwLock::new(HashMap::new())),
             global_mcp_servers: Arc::new(RwLock::new(Vec::new())),
         }
     }
@@ -41,6 +45,7 @@ impl AgentRegistry {
     /// Spawns a background task to watch the agents folder for changes.
     pub fn watch(&self, root_path: PathBuf) -> Result<()> {
         let agents = self.agents.clone();
+        let squads = self.squads.clone();
         let global_mcp = self.global_mcp_servers.clone();
         let path_to_watch = root_path.clone();
 
@@ -62,7 +67,7 @@ impl AgentRegistry {
                     Ok(_) => {
                         tracing::info!("Detected change in agents folder, re-scanning...");
                         // We need a helper to perform the scan
-                        if let Err(e) = AgentRegistry::scan_internal(&path_to_watch, &agents, &global_mcp) {
+                        if let Err(e) = AgentRegistry::scan_internal(&path_to_watch, &agents, &squads, &global_mcp) {
                             tracing::error!("Hot reload scan failed: {}", e);
                         }
                     }
@@ -76,12 +81,13 @@ impl AgentRegistry {
 
     /// Scans a directory for agent subfolders.
     pub fn scan_folder(&self, root_path: &Path) -> Result<()> {
-        AgentRegistry::scan_internal(root_path, &self.agents, &self.global_mcp_servers)
+        AgentRegistry::scan_internal(root_path, &self.agents, &self.squads, &self.global_mcp_servers)
     }
 
     fn scan_internal(
         root_path: &Path, 
         agents_lock: &Arc<RwLock<HashMap<String, AgentConfig>>>,
+        squads_lock: &Arc<RwLock<HashMap<String, Squad>>>,
         mcp_lock: &Arc<RwLock<Vec<McpConfig>>>
     ) -> Result<()> {
         if !root_path.exists() || !root_path.is_dir() {
@@ -89,6 +95,7 @@ impl AgentRegistry {
         }
 
         let mut new_agents = HashMap::new();
+        let mut new_squads = HashMap::new();
         let mut new_global_mcp = Vec::new();
 
         for entry in fs::read_dir(root_path)? {
@@ -145,12 +152,32 @@ impl AgentRegistry {
             }
         }
 
+        // Discover squads
+        let squads_dir = root_path.join("squads");
+        if squads_dir.exists() && squads_dir.is_dir() {
+            for entry in fs::read_dir(squads_dir)? {
+                let entry = entry?;
+                let path = entry.path();
+                if path.is_file() && path.extension().map_or(false, |e| e == "json") {
+                    let content = fs::read_to_string(&path)?;
+                    match serde_json::from_str::<Squad>(&content) {
+                        Ok(squad) => {
+                            new_squads.insert(squad.name.clone(), squad);
+                        }
+                        Err(e) => tracing::warn!("Failed to parse squad config in {:?}: {}", path, e),
+                    }
+                }
+            }
+        }
+
         // Apply changes
         {
             let mut agents = agents_lock.write().map_err(|_| anyhow::anyhow!("RwLock poisoned"))?;
+            let mut squads = squads_lock.write().map_err(|_| anyhow::anyhow!("RwLock poisoned"))?;
             let mut global_mcp = mcp_lock.write().map_err(|_| anyhow::anyhow!("RwLock poisoned"))?;
             
             *agents = new_agents;
+            *squads = new_squads;
             *global_mcp = new_global_mcp;
         }
 
