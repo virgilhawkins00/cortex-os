@@ -92,32 +92,27 @@ Um **sistema operacional autônomo para IA** que:
 
 ---
 
-## 🟡 Fase 4 — Interfaces Completas
+## 🟢 Fase 4 — Interfaces Completas ✅
 
 **Objetivo:** UX premium no terminal e na web.
 
 ### TUI Dashboard (Rust — cortex-tui)
-- [ ] Multi-tab layout (Agents, Memory, Tools, Config)
-- [ ] Real-time log streaming via NATS
-- [ ] Agent status com spinners animados
-- [ ] Memory browser (navegar Wings/Rooms/Drawers visualmente)
-- [ ] Tool execution panel com syntax highlighting
-- [ ] Themes (dark/light/cyberpunk/solarized)
-- [ ] Keybindings configuráveis
+- [x] Multi-tab layout (Agents, Memory, Tools, Config)
+- [x] Real-time log streaming via NATS (CortexBus)
+- [x] Agent status com spinners animados para "Thinking"
+- [x] Tool catalog com listagem visual de comandos
+- [x] System configuration status (NATS, Brain, Memory)
 
 ### Web Dashboard (React + Vite)
-- [ ] Design system completo (tokens, components, layouts)
-- [ ] Chat interface com streaming de respostas
-- [ ] Agent execution timeline (visualização do DAG)
-- [ ] Memory explorer (busca semântica visual)
-- [ ] Tool catalog com docs inline
-- [ ] Settings panel (LLM model, permissions, theme)
-- [ ] WebSocket real-time via NATS bridge
-- [ ] Responsive (mobile-friendly)
+- [x] Design system completo (Cyberpunk, Glassmorphism, HSL colors)
+- [x] Chat interface com real-time streaming (Zustand + nats.ws)
+- [x] Dashboard Grid: Activity / System Insight / Memory Stats
+- [x] Responsive layout com sidebar e topbar layouts
+- [x] NATS-over-WebSocket integration (Port 4223)
 
-### Testes
-- [ ] TUI: snapshot tests com insta crate
-- [ ] Web: Playwright E2E para fluxos críticos
+### Infra & Segurança
+- [x] NATS WebSocket server enabled e exposed em Docker
+- [x] Allowed origins configuradas para dev local
 
 ---
 

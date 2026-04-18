@@ -6,7 +6,8 @@ services:
     ports:
       - "4222:4222"
       - "8222:8222"
-    command: ["--auth", "${NATS_AUTH_TOKEN}"]
+      - "4223:4223"
+    command: ["--auth", "${NATS_AUTH_TOKEN}", "--websocket", "--websocket_port", "4223", "--websocket_no_tls", "--websocket_allowed_origin", "*"]
     networks:
       - cortex_net
     restart: always

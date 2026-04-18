@@ -122,6 +122,8 @@ class NATSBridge:
         # Subscribe to all subjects
         await self.nc.subscribe("cortex.memory.store", cb=self._handle_memory_store)
         await self.nc.subscribe("cortex.memory.search", cb=self._handle_memory_search)
+        await self.nc.subscribe("cortex.memory.list", cb=self._handle_memory_list)
+        await self.nc.subscribe("cortex.memory.delete", cb=self._handle_memory_delete)
         await self.nc.subscribe("cortex.memory.ingest", cb=self._handle_memory_ingest)
         await self.nc.subscribe("cortex.brain.think", cb=self._handle_brain_think)
         await self.nc.subscribe("cortex.brain.health", cb=self._handle_brain_health)
@@ -205,6 +207,57 @@ class NATSBridge:
 
         except Exception as e:
             logger.error("memory.search failed: %s", e)
+            await msg.respond(_err_response(str(e)))
+
+    async def _handle_memory_list(self, msg: nats.aio.client.Msg) -> None:
+        """Handle cortex.memory.list — list memories."""
+        try:
+            data = json.loads(msg.data)
+            wing = data.get("wing")
+            room = data.get("room")
+            limit = data.get("limit", 50)
+
+            memories = await self._storage.list_memories(
+                wing_id=(await self._storage.get_wing(wing)).id if wing else None,
+                room_id=(await self._storage.get_room((await self._storage.get_wing(wing)).id if wing else None, room)).id if (wing and room) else None,
+                limit=limit,
+            )
+
+            response = {
+                "memories": [
+                    {
+                        "id": m.id,
+                        "content": m.content,
+                        "wing_id": m.wing_id,
+                        "room_id": m.room_id,
+                        "created_at": m.created_at.isoformat(),
+                    }
+                    for m in memories
+                ],
+                "count": len(memories),
+            }
+            await msg.respond(_ok_response(response))
+
+        except Exception as e:
+            logger.error("memory.list failed: %s", e)
+            await msg.respond(_err_response(str(e)))
+
+    async def _handle_memory_delete(self, msg: nats.aio.client.Msg) -> None:
+        """Handle cortex.memory.delete — delete a memory."""
+        try:
+            data = json.loads(msg.data)
+            memory_id = data.get("memory_id")
+
+            if not memory_id:
+                await msg.respond(_err_response("Missing 'memory_id' field"))
+                return
+
+            success = await self._storage.delete_memory(memory_id)
+            await msg.respond(_ok_response({"success": success}))
+            logger.info("Deleted memory %s via NATS", memory_id[:8])
+
+        except Exception as e:
+            logger.error("memory.delete failed: %s", e)
             await msg.respond(_err_response(str(e)))
 
     async def _handle_memory_ingest(self, msg: nats.aio.client.Msg) -> None:
