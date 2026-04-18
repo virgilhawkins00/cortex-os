@@ -24,13 +24,34 @@ async fn main() -> Result<()> {
     let sandbox = cortex_core::sandbox::Sandbox::default();
     let registry = Arc::new(cortex_core::tools::ToolRegistry::with_defaults(sandbox, Arc::clone(&bus_arc)));
     let policy = Arc::new(cortex_core::permissions::PermissionPolicy::full());
-    let swarm = cortex_core::swarm::SwarmManager::new(Arc::clone(&bus_arc), Arc::clone(&registry), Arc::clone(&policy));
+
+    // Agent Discovery
+    let agent_registry = cortex_core::registry::AgentRegistry::new();
+    let agents_path = std::path::Path::new("./agents");
+    let _ = agent_registry.scan_folder(agents_path);
+    let _ = agent_registry.watch(agents_path.to_path_buf());
+    let agent_registry_arc = Arc::new(agent_registry);
+
+    let swarm = cortex_core::swarm::SwarmManager::new(
+        Arc::clone(&bus_arc), 
+        Arc::clone(&registry), 
+        agent_registry_arc,
+        Arc::clone(&policy)
+    );
     
     // Start delegation listener in background
     let swarm_clone = swarm.clone();
     tokio::spawn(async move {
         if let Err(e) = swarm_clone.run_delegation_listener().await {
             tracing::error!("Swarm delegation listener failed: {}", e);
+        }
+    });
+
+    // Start status listener in background
+    let swarm_status = swarm.clone();
+    tokio::spawn(async move {
+        if let Err(e) = swarm_status.run_status_listener().await {
+            tracing::error!("Swarm status listener failed: {}", e);
         }
     });
 

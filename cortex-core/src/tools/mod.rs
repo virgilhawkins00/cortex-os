@@ -3,6 +3,8 @@ pub mod file;
 pub mod tree;
 pub mod web;
 pub mod delegation;
+pub mod mcp;
+pub mod script;
 
 use anyhow::Result;
 use serde_json::Value;
@@ -40,32 +42,29 @@ pub struct ToolRegistry {
 }
 
 impl ToolRegistry {
+    /// Create an empty registry.
+    pub fn new() -> Self {
+        Self { tools: HashMap::new() }
+    }
+
     /// Create a new registry with all built-in tools.
     pub fn with_defaults(sandbox: Sandbox, bus: Arc<CortexBus>) -> Self {
-        let mut tools: HashMap<String, Box<dyn Tool>> = HashMap::new();
+        let mut registry = Self::new();
 
-        let bash_tool = bash::BashTool::new(sandbox);
-        tools.insert(bash_tool.name().to_string(), Box::new(bash_tool));
+        registry.register(Box::new(bash::BashTool::new(sandbox)));
+        registry.register(Box::new(file::FileReadTool));
+        registry.register(Box::new(file::FileWriteTool));
+        registry.register(Box::new(tree::FileTreeTool));
+        registry.register(Box::new(web::WebReadTool::new()));
+        registry.register(Box::new(web::WebSearchTool::new()));
+        registry.register(Box::new(delegation::DelegateTool::new(bus)));
 
-        let file_read = file::FileReadTool;
-        tools.insert(file_read.name().to_string(), Box::new(file_read));
+        registry
+    }
 
-        let file_write = file::FileWriteTool;
-        tools.insert(file_write.name().to_string(), Box::new(file_write));
-
-        let tree_tool = tree::FileTreeTool;
-        tools.insert(tree_tool.name().to_string(), Box::new(tree_tool));
-
-        let web_read = web::WebReadTool::new();
-        tools.insert(web_read.name().to_string(), Box::new(web_read));
-
-        let web_search = web::WebSearchTool::new();
-        tools.insert(web_search.name().to_string(), Box::new(web_search));
-
-        let delegate = delegation::DelegateTool::new(bus);
-        tools.insert(delegate.name().to_string(), Box::new(delegate));
-
-        Self { tools }
+    /// Register a new tool.
+    pub fn register(&mut self, tool: Box<dyn Tool>) {
+        self.tools.insert(tool.name().to_string(), tool);
     }
 
     /// List all registered tool names.

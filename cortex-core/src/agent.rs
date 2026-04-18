@@ -24,6 +24,7 @@ pub struct Agent {
     policy: Arc<PermissionPolicy>,
     max_steps: usize,
     role: Option<String>,
+    specialization: Option<String>,
 }
 
 impl Agent {
@@ -34,12 +35,19 @@ impl Agent {
             policy,
             max_steps: 10,
             role: None,
+            specialization: None,
         }
     }
 
     /// Set the specialized role for this agent (e.g., "devops").
     pub fn with_role(mut self, role: &str) -> Self {
         self.role = Some(role.to_string());
+        self
+    }
+
+    /// Set the specialization details (system prompt modification).
+    pub fn with_specialization(mut self, spec: &str) -> Self {
+        self.specialization = Some(spec.to_string());
         self
     }
 
@@ -72,7 +80,7 @@ impl Agent {
                 model: None,
                 include_memory: true,
                 stream: false,
-                metadata: None,
+                metadata: self.specialization.as_ref().map(|s| json!(s)),
                 role: self.role.clone(),
             };
 

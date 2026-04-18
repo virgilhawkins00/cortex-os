@@ -8,6 +8,8 @@ use cortex_core::nats_bus::{
 use cortex_core::permissions::{Permission, PermissionPolicy};
 use cortex_core::sandbox::Sandbox;
 use cortex_core::tools::ToolRegistry;
+use cortex_core::registry::AgentRegistry;
+use cortex_core::swarm::SwarmManager;
 use futures::StreamExt;
 use serde_json::json;
 use std::io::{self, Write};
@@ -58,6 +60,15 @@ async fn main() -> Result<()> {
     let bus_arc = Arc::new(bus);
     let registry = Arc::new(ToolRegistry::with_defaults(sandbox, Arc::clone(&bus_arc)));
     
+    // Agent Registry
+    let agent_registry = AgentRegistry::new();
+    let agents_path = std::path::Path::new("./agents");
+    let _ = agent_registry.scan_folder(agents_path);
+    let _ = agent_registry.watch(agents_path.to_path_buf());
+    let agent_registry_arc = Arc::new(agent_registry);
+
+    let discovered_agents = agent_registry_arc.list_roles();
+    
     println!("  ██████╗ ██████╗ ██████╗ ████████╗███████╗██╗  ██╗");
     println!("  ██╔════╝██╔═══██╗██╔══██╗╚══██╔══╝██╔════╝╚██╗██╔╝");
     println!("  ██║     ██║   ██║██████╔╝   ██║   █████╗   ╚███╔╝ ");
@@ -67,13 +78,14 @@ async fn main() -> Result<()> {
     println!("                          OS v0.1.0");
     println!("  ─────────────────────────────────────────────────");
     println!("  Tools: {:?}", registry.list());
+    println!("  Agents: {:?}", discovered_agents);
     println!("  Permission: {} | Workspace: {cwd}", cli.permission);
     println!();
 
     if cli.daemon {
-        run_daemon(&cli.nats_url, cli.nats_token.as_deref(), registry, policy).await?;
+        run_daemon(&cli.nats_url, cli.nats_token.as_deref(), registry, agent_registry_arc, policy).await?;
     } else {
-        run_interactive(&cli.nats_url, cli.nats_token.as_deref(), registry, policy).await?;
+        run_interactive(&cli.nats_url, cli.nats_token.as_deref(), registry, agent_registry_arc, policy).await?;
     }
 
     Ok(())
@@ -84,6 +96,7 @@ async fn run_interactive(
     nats_url: &str,
     nats_token: Option<&str>,
     registry: Arc<ToolRegistry>,
+    agent_registry: Arc<AgentRegistry>,
     policy: Arc<PermissionPolicy>,
 ) -> Result<()> {
     // Try connecting to NATS for memory/brain features
@@ -115,7 +128,7 @@ async fn run_interactive(
     println!("    think <prompt>         — Ask the LLM (with memory context)");
     println!("    remember <text>        — Store a memory");
     println!("    recall <query>         — Search memories");
-    println!("    agent <goal>           — Start an autonomous task loop");
+    println!("    agent [role] <goal>    — Start an autonomous task loop");
     println!("    tree [path]            — Show file structure");
     println!("    tools                  — List available tools");
     println!("    exit                   — Quit");
@@ -204,11 +217,17 @@ async fn run_interactive(
             }
             "agent" => {
                 if arg_str.is_empty() {
-                    println!("  Usage: agent <goal>");
+                    println!("  Usage: agent [role] <goal>");
                     continue;
                 }
                 if let Some(ref bus_shared) = bus {
-                    handle_agent(Arc::clone(bus_shared), Arc::clone(&registry), Arc::clone(&policy), arg_str).await;
+                    handle_agent(
+                        Arc::clone(bus_shared), 
+                        Arc::clone(&registry), 
+                        Arc::clone(&agent_registry),
+                        Arc::clone(&policy), 
+                        arg_str
+                    ).await;
                 } else {
                     println!("  [OFFLINE] NATS not connected.");
                 }
@@ -338,10 +357,20 @@ async fn run_daemon(
     nats_url: &str,
     nats_token: Option<&str>,
     registry: Arc<ToolRegistry>,
+    agent_registry: Arc<AgentRegistry>,
     policy: Arc<PermissionPolicy>,
 ) -> Result<()> {
     let bus = CortexBus::connect(nats_url, nats_token, None).await?;
     let bus_arc = Arc::new(bus);
+    
+    // SwarmManager handles the logic of spawning from registry
+    let swarm = SwarmManager::new(bus_arc.clone(), registry.clone(), agent_registry, policy.clone());
+    
+    let swarm_delegate = swarm.clone();
+    tokio::spawn(async move {
+        let _ = swarm_delegate.run_delegation_listener().await;
+    });
+
     let mut sub = bus_arc.subscribe("cortex.task").await?;
 
     info!("Daemon mode: listening on 'cortex.task'...");
@@ -393,15 +422,23 @@ async fn run_daemon(
 async fn handle_agent(
     bus: Arc<CortexBus>,
     registry: Arc<ToolRegistry>,
+    agent_registry: Arc<AgentRegistry>,
     policy: Arc<PermissionPolicy>,
-    goal: &str,
+    arg_str: &str,
 ) {
-    println!("  🤖 Agent starting goal: \"{goal}\"");
+    let parts: Vec<&str> = arg_str.splitn(2, ' ').collect();
+    let (role, goal) = if parts.len() == 2 && agent_registry.get_config(parts[0]).is_some() {
+        (parts[0], parts[1])
+    } else {
+        ("default", arg_str)
+    };
+
+    println!("  🤖 Agent starting (role: {role}) goal: \"{goal}\"");
     println!("  ─────────────────────────────────────────────────");
 
-    let agent = Agent::new(bus, registry, policy);
+    let swarm = SwarmManager::new(bus, registry, agent_registry, policy);
 
-    match agent.run(goal).await {
+    match swarm.spawn_agent(role, goal).await {
         Ok(result) => {
             println!("\n  ✨ Goal achieved!");
             println!("  ─────────────────────────────────────────────────");

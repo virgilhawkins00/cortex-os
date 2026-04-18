@@ -19,6 +19,7 @@ html2text.workspace = true
 uuid.workspace = true
 async-trait = "0.1"
 futures = "0.3"
+notify = "8.2.0"
 
 [lints]
 workspace = true

@@ -45,6 +45,9 @@ struct App {
     tool_list: Vec<String>,
     tool_list_state: ListState,
     registry: Arc<ToolRegistry>,
+
+    // Swarm State
+    active_agents: Vec<serde_json::Value>,
 }
 
 impl App {
@@ -64,6 +67,7 @@ impl App {
             tool_list: tools,
             tool_list_state: ListState::default(),
             registry,
+            active_agents: Vec::new(),
         }
     }
 
@@ -208,6 +212,19 @@ async fn main() -> Result<()> {
             if app.is_thinking {
                 app.thinking_step = (app.thinking_step + 1) % 4;
             }
+
+            // Periodic Swarm Status Fetch (approx every 1s)
+            if app.nats_connected && app.active_tab == Tab::Agents {
+               if let Some(ref b) = bus {
+                  if let Ok(res) = b.request("cortex.swarm.status", &[], Duration::from_millis(500)).await {
+                     if let Ok(data) = serde_json::from_str::<serde_json::Value>(&res.output) {
+                        if let Some(agents) = data["agents"].as_array() {
+                           app.active_agents = agents.clone();
+                        }
+                     }
+                  }
+               }
+            }
         }
 
         if app.should_quit {
@@ -295,13 +312,33 @@ fn render_agents(f: &mut Frame, area: Rect, app: &App) {
     let status_text = if app.is_thinking {
         format!("{} Thinking...", thinking_marker)
     } else {
-        "IDLE".to_string()
+        "SYSTEM READY".to_string()
     };
 
-    let status = Paragraph::new(status_text)
-        .style(Style::default().fg(Color::Cyan))
+    let swarm_title = format!(" Active Swarm Agents ({}) ", app.active_agents.len());
+    let agents_items: Vec<ListItem> = app.active_agents
+        .iter()
+        .map(|a| {
+            let role = a["role"].as_str().unwrap_or("unknown");
+            let id = a["id"].as_str().unwrap_or("?");
+            ListItem::new(format!("🤖 {} [{}]", role.to_uppercase(), &id[..8]))
+        })
+        .collect();
+
+    let agents_list = List::new(agents_items)
+        .block(Block::default().title(swarm_title).borders(Borders::ALL).border_style(Style::default().fg(Color::Cyan)));
+    
+    let status_p = Paragraph::new(status_text)
+        .style(Style::default().fg(Color::Yellow))
         .block(Block::default().title(" Status ").borders(Borders::ALL));
-    f.render_widget(status, layout[1]);
+
+    let right_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(3), Constraint::Min(5)])
+        .split(layout[1]);
+
+    f.render_widget(status_p, right_chunks[0]);
+    f.render_widget(agents_list, right_chunks[1]);
 }
 
 fn render_memory(f: &mut Frame, area: Rect, app: &App) {

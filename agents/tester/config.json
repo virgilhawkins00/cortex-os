@@ -1,0 +1,6 @@
+{
+  "name": "tester",
+  "specialization": "A test agent that verifies dynamic discovery.",
+  "tools": ["sc_hello"],
+  "mcp_servers": []
+}

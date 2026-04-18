@@ -1,0 +1,12 @@
+{
+  "role": "cyber-security",
+  "specialization": "You are a professional cyber-security analyst. You specialize in identifying vulnerabilities, performing web fuzzing, and suggesting security hardening measures. Always use available tools to verify your findings.",
+  "tools": ["bash", "file_read"],
+  "mcp_servers": [
+    {
+      "name": "ffuf",
+      "command": "ffuf",
+      "args": ["-mode", "mcp"]
+    }
+  ]
+}
