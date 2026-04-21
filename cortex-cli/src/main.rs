@@ -1,3 +1,4 @@
+use anyhow::Result;
 use clap::Parser;
 use cortex_core::nats_bus::{
     BrainThinkRequest, CortexBus, MemoryIngestRequest, MemorySearchRequest, TaskRequest,
