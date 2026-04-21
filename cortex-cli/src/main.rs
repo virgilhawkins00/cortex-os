@@ -1,5 +1,5 @@
 use anyhow::Result;
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use cortex_core::nats_bus::{
     BrainThinkRequest, CortexBus, MemoryIngestRequest, MemorySearchRequest, TaskRequest,
     TaskResult, TaskStatus,
@@ -33,7 +33,30 @@ struct Cli {
     /// Run in daemon mode (listen for NATS tasks instead of interactive prompt)
     #[arg(long)]
     daemon: bool,
+
+    #[command(subcommand)]
+    command: Option<Commands>,
 }
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Manage the encrypted Secrets Vault
+    Vault {
+        #[command(subcommand)]
+        action: VaultAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum VaultAction {
+    /// Initialize a new vault
+    Init,
+    /// Set a key-value pair in the vault
+    Set { key: String, value: String },
+    /// Unseal the vault and print success (testing)
+    Unseal,
+}
+
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -45,6 +68,40 @@ async fn main() -> Result<()> {
         .init();
 
     let cli = Cli::parse();
+
+    // 1. Process explicit Vault management subcommands
+    if let Some(cmd) = &cli.command {
+        match cmd {
+            Commands::Vault { action } => {
+                let password = rpassword::prompt_password("Enter Vault Master Password: ")?;
+                match action {
+                    VaultAction::Init => {
+                        cortex_core::vault::Vault::init(&password)?;
+                        println!("Vault initialized at .env.vault.");
+                    }
+                    VaultAction::Set { key, value } => {
+                        cortex_core::vault::Vault::set(&password, key, value)?;
+                        println!("Vault updated key: {}", key);
+                    }
+                    VaultAction::Unseal => {
+                        cortex_core::vault::Vault::unseal(&password)?;
+                        println!("Vault successfully unsealed. Keys are valid.");
+                    }
+                }
+                return Ok(());
+            }
+        }
+    }
+
+    // 2. Normal boot execution: Unseal the Vault if it exists
+    if std::path::Path::new(".env.vault").exists() {
+        let password = rpassword::prompt_password("Vault found. Enter Master Password to boot Cortex OS: ")?;
+        cortex_core::vault::Vault::unseal(&password)?;
+        println!("Vault unsealed into memory.");
+    } else {
+        println!("No .env.vault found. Running with plain environment variables.");
+    }
+
 
     let perm = match cli.permission.as_str() {
         "readonly" => Permission::ReadOnly,

@@ -95,7 +95,7 @@ impl Vault {
         let path = Self::get_vault_path();
 
         // 1. Generate salt
-        use rand::RngCore;
+        use rand::Rng;
         let mut salt = [0u8; SALT_LEN];
         rand::rng().fill_bytes(&mut salt);
 

@@ -21,6 +21,7 @@ tracing-subscriber.workspace = true
 async-nats.workspace = true
 clap.workspace = true
 futures = "0.3"
+rpassword = "7.4.0"
 
 [lints]
 workspace = true
