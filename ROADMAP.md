@@ -139,13 +139,14 @@ Um **sistema operacional autônomo para IA** que:
 
 ---
 
-## 🟡 Fase 6 — Segurança & Hardening ✅ (IN PROGRESS)
+## 🟡 Fase 6 — Segurança & Hardening (IN PROGRESS)
 
 **Objetivo:** Pronto para produção com auditoria e mTLS.
 
 ### Security
 - [x] mTLS entre componentes (NATS + internal services)
-- [ ] Secrets vault (encrypted .env at rest)
+- [x] Secrets Vault AES-256-GCM (`.env.vault` com PBKDF2 key derivation + master password)
+- [x] CLI commands: `cortex vault init`, `cortex vault set`, auto-unseal no boot
 - [x] Audit log de todas as execuções de tools
 - [x] Rate limiting no gateway (limite básico configurável)
 - [ ] Input sanitization (prompt injection defense)
@@ -154,10 +155,10 @@ Um **sistema operacional autônomo para IA** que:
 
 ### Reliability & Config
 - [x] Retenção de logs configurável (Forever vs X dias)
-- [ ] Health checks para todos os serviços
-- [ ] Graceful shutdown em todos os binários
+- [x] Health checks via NATS (`cortex.brain.health` ping/pong)
+- [x] Graceful shutdown com `CancellationToken` (Ctrl+C → cancel all swarms → flush NATS → exit)
 - [ ] Reconnect automático no NATS
-- [ ] Circuit breaker no LLM client
+- [x] Circuit breaker no LLM client (5 falhas consecutivas → halt automático)
 - [ ] Metrics export (Prometheus)
 - [ ] Structured logging (JSON para produção)
 
@@ -168,16 +169,16 @@ Um **sistema operacional autônomo para IA** que:
 
 ---
 
-## 🟡 Fase 7 — Deployment & Plug-and-Play
+## 🟡 Fase 7 — Deployment & Plug-and-Play (IN PROGRESS)
 
 **Objetivo:** Qualquer pessoa instala em 2 minutos.
 
 ### Packaging
-- [ ] `setup.sh` — one-liner que instala tudo (detect OS, install deps, build)
-- [ ] Dockerfile multi-stage para binário Rust otimizado
-- [ ] Docker Compose all-in-one (um `up` e tudo roda)
+- [x] `setup.sh` — one-liner que instala tudo (detect OS, install deps, build)
+- [x] Dockerfile multi-stage para binário Rust otimizado (non-root, dependency caching)
+- [x] Docker Compose all-in-one (um `up` e tudo roda)
 - [ ] **Executáveis Nativos**: Compilação para `.app` (macOS/Tuist) e `.exe` (Windows)
-- [ ] GitHub Actions CI/CD (test → build → release)
+- [x] GitHub Actions CI/CD (check → test → build cross-platform → Docker GHCR push)
 - [ ] Homebrew formula (macOS)
 - [ ] AUR package (Arch Linux)
 
@@ -187,7 +188,7 @@ Um **sistema operacional autônomo para IA** que:
 - [ ] Tailscale VPN auto-setup para acesso remoto seguro
 
 ### Documentation
-- [ ] User guide completo (instalação, configuração, uso)
+- [x] README com Quick Start, Vault setup, Tech Stack completo
 - [ ] Developer guide (como criar tools, channels, plugins)
 - [ ] Architecture Decision Records (ADRs)
 - [ ] Video walkthrough
@@ -233,23 +234,24 @@ Um **sistema operacional autônomo para IA** que:
 
 ## Timeline Estimada
 
-| Fase | Duração | Dependências |
+| Fase | Status | Dependências |
 |---|---|---|
 | 1. Fundação | ✅ Completa | — |
 | 2. Cérebro | ✅ Completa | Fase 1 |
 | 3. Autonomia | ✅ Completa | Fase 2 |
 | 4. Interfaces | ✅ Completa | Fase 3 |
 | 5. Gateway | ✅ Completa | Fase 3 |
-| 6. Segurança | 1 semana | Fase 3-5 |
-| 7. Deploy | 1 semana | Fase 6 |
+| 6. Segurança | 🟡 ~80% (Vault ✅, Shutdown ✅, Health ✅) | Fase 3-5 |
+| 7. Deploy | 🟡 ~60% (setup.sh ✅, Dockerfile ✅, CI/CD ✅) | Fase 6 |
 | 8. Swarm | ✅ Completa | Fase 6 |
-| 9. Engenharia/Tokens | 2 semanas | Fase 8 |
-| 10. Ecossistema | Ongoing | Fase 9 |
+| 9. Engenharia/Tokens | ✅ Completa (Caveman + 4 APIs) | Fase 8 |
+| 10. Ecossistema | ⏳ Futuro | Fase 9 |
 
 **Total estimado até produto funcional (Fase 5): ~6-9 semanas**
 **Total até production-ready (Fase 7): ~8-12 semanas**
 
 ---
 
-*Última atualização: 2026-04-17*
+*Última atualização: 2026-04-21*
 *Autor: @virgilhawkins00*
+

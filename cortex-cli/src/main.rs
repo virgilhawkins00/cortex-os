@@ -125,6 +125,17 @@ async fn main() -> Result<()> {
 
     let discovered_agents = agent_registry_arc.list_roles();
     
+    // 3. Initialize Graceful Shutdown Controller
+    let shutdown = Arc::new(cortex_core::ShutdownController::new());
+    shutdown.spawn_signal_handler();
+
+    // 4. Spawn Health Monitor (Circuit Breaker for Brain/LLM)
+    let health_monitor = cortex_core::health::HealthMonitor::new(
+        Arc::clone(&bus_arc),
+        Arc::clone(&shutdown),
+    );
+    health_monitor.spawn();
+
     println!("  ██████╗ ██████╗ ██████╗ ████████╗███████╗██╗  ██╗");
     println!("  ██╔════╝██╔═══██╗██╔══██╗╚══██╔══╝██╔════╝╚██╗██╔╝");
     println!("  ██║     ██║   ██║██████╔╝   ██║   █████╗   ╚███╔╝ ");
@@ -135,6 +146,8 @@ async fn main() -> Result<()> {
     println!("  ─────────────────────────────────────────────────");
     println!("  Tools: {:?}", registry.list());
     println!("  Agents: {:?}", discovered_agents);
+    println!("  Vault: {}", if std::path::Path::new(".env.vault").exists() { "🔒 Sealed" } else { "⚠ No vault" });
+    println!("  Health: ✓ Monitor active (circuit breaker enabled)");
     println!("  Permission: {} | Workspace: {cwd}", cli.permission);
     println!();
 
@@ -144,6 +157,8 @@ async fn main() -> Result<()> {
         run_interactive(&cli.nats_url, cli.nats_token.as_deref(), registry, agent_registry_arc, policy).await?;
     }
 
+    // Graceful cleanup
+    info!("Cortex OS shutting down...");
     Ok(())
 }
 

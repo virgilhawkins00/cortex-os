@@ -1,5 +1,7 @@
 pub mod nats_bus;
 pub mod vault;
+pub mod shutdown;
+pub mod health;
 pub mod permissions;
 pub mod sandbox;
 pub mod tools;
@@ -15,3 +17,4 @@ pub use permissions::{Permission, PermissionPolicy};
 pub use sandbox::Sandbox;
 pub use tools::ToolRegistry;
 pub use registry::AgentRegistry;
+pub use shutdown::ShutdownController;
