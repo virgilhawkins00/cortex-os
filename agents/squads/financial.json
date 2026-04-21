@@ -1,21 +1,16 @@
 {
   "name": "Financial Analyst Squad+",
-  "description": "5-agent swarm for cross-market crypto analysis and fundamental monitoring.",
+  "description": "Multi-agent swarm for cross-market crypto analysis, fundamental monitoring, and automated risk management.",
   "agents": [
     {
-      "role": "tester",
-      "goal": "Scan BTC/USD market using sc_market_scan and report entry signals.",
-      "name": "BTC Analyst"
+      "role": "market-analyst",
+      "goal": "Scan the BTCUSDT market using sc_fetch_binance_ticker and report technical entry signals.",
+      "name": "BTC Quant"
     },
     {
-      "role": "tester",
-      "goal": "Scan ETH/USD market using sc_market_scan and report entry signals.",
-      "name": "ETH Analyst"
-    },
-    {
-      "role": "tester",
-      "goal": "Scan SOL/USD market using sc_market_scan and report entry signals.",
-      "name": "SOL Analyst"
+      "role": "fundamental-researcher",
+      "goal": "Research global macro news affecting crypto (interest rates, CPI) and provide a sentiment report.",
+      "name": "Macro Economist"
     },
     {
       "role": "cyber-security",
@@ -23,9 +18,9 @@
       "name": "Security Sentinel"
     },
     {
-      "role": "tester",
-      "goal": "Research global macro news (interest rates, CPI) and provide a sentiment report.",
-      "name": "Fundamental Researcher"
+      "role": "risk-manager",
+      "goal": "Compile the Technical Signals and Macro Sentiment. Output a final decision on capital allocation sizing.",
+      "name": "Chief Risk Officer"
     }
   ]
 }

@@ -8,6 +8,7 @@ for tool calling.
 from __future__ import annotations
 
 from .._version import CORTEX_VERSION
+from .compressor import TokenBudget
 
 _SYSTEM_IDENTITY = f"""You are Cortex, an autonomous AI operating system (v{CORTEX_VERSION}).
 
@@ -102,8 +103,8 @@ class SystemPromptBuilder:
         if memories:
             context = _MEMORY_CONTEXT_HEADER.strip() + "\n"
             for i, mem in enumerate(memories, 1):
-                # Truncate very long memories for context window efficiency
-                display = mem[:500] + "..." if len(mem) > 500 else mem
+                # Compress using Caveman logic and limit to ~150 tokens per memory
+                display = TokenBudget.fit_to_budget(mem, max_tokens=150, compress_first=True)
                 context += f"\n[Memory {i}]\n{display}\n"
             parts.append(context)
 

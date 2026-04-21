@@ -8,7 +8,10 @@ from __future__ import annotations
 
 import logging
 
+import os
+
 from .ollama_client import OllamaClient
+from .api_clients import OpenAiClient, AnthropicClient, GeminiClient, GroqClient
 
 logger = logging.getLogger(__name__)
 
@@ -71,8 +74,15 @@ class ModelRouter:
         3. Default fallback chain
         4. Any available model
 
-        Returns None if no model is available.
+        Returns None if no model is available natively AND no external API is configured.
         """
+        # First, check if the user specifically forced an external model or if
+        # an external API key is set and matches the preferred model.
+        external_client = self._check_external_api(self._preferred)
+        if external_client:
+            logger.info("Routed to external API client for model: %s", self._preferred)
+            return external_client
+
         if not self._available_models:
             return None
 
@@ -109,6 +119,29 @@ class ModelRouter:
         # Try without version tag
         base_name = model.split(":")[0]
         return any(m.startswith(base_name) for m in self._available_models)
+
+    def _check_external_api(self, model: str):
+        """Check if the model matches an external provider and return its client wrapper."""
+        if "claude" in model.lower():
+            api_key = os.getenv("ANTHROPIC_API_KEY")
+            if api_key: return AnthropicClient(api_key, model)
+        
+        elif "gpt" in model.lower() or "o1" in model.lower():
+            api_key = os.getenv("OPENAI_API_KEY")
+            if api_key: return OpenAiClient(api_key, model)
+            
+        elif "gemini" in model.lower():
+            api_key = os.getenv("GEMINI_API_KEY")
+            if api_key: return GeminiClient(api_key, model)
+            
+        elif "mixtral" in model.lower() or "llama" in model.lower():
+            # If standard open source model, check if user provided GROQ key to run it lightning fast
+            api_key = os.getenv("GROQ_API_KEY")
+            # Only use Groq if explicitly prefixed with 'groq:' to avoid overriding local ollama unintentionally
+            if api_key and model.startswith("groq:"):
+                return GroqClient(api_key, model.replace("groq:", ""))
+                
+        return None
 
     async def ensure_preferred(self) -> str | None:
         """Ensure the preferred model is available, pulling if needed."""

@@ -7,12 +7,12 @@
 
 ## What is Cortex OS?
 
-Cortex OS is a **unified, from-scratch** autonomous AI runtime that combines:
+Cortex OS is a **unified, from-scratch** autonomous AI runtime, designed as a superior, extensible alternative to tools like Claude Code and OpenDevin. It operates natively in your terminal with advanced multi-agent capabilities.
 
 - **Sandboxed execution** of code and shell commands (Rust)
-- **Persistent semantic memory** with verbatim recall (Python + ChromaDB)
-- **Multi-agent workflow orchestration** (plan → execute → verify)
-- **Local-first LLM inference** with uncensored models (Ollama)
+- **Native Mempalace Integration**: Persistent semantic memory with verbatim recall, dramatically reducing token context window bloat compared to standard chat platforms.
+- **Multi-Agent Swarms (Squads)**: Define specialized squads (e.g., Financial Analysts or Full-Stack Engineering teams) that work in parallel on complex domains using modern stacks (JS/TS, Rust, Go, Python, C++).
+- **Model Flexibility**: Built Open-Source first (Ollama, Qwen, Llama), but fully compatible with Anthropic and OpenAI APIs via native Token Reduction systems to keep costs low.
 - **Beautiful interfaces** — both TUI (terminal) and Web dashboard
 
 One binary. One `docker compose up`. Done.
@@ -50,11 +50,11 @@ cargo build --workspace --release
 
 | Layer | Tech | Purpose |
 |---|---|---|
-| Execution | Rust (tokio, async) | Tool registry, sandbox, permissions |
-| Memory | Python (ChromaDB, SQLite) | Semantic search, knowledge graph |
-| Bus | NATS | Component communication |
-| LLM | Ollama | Local uncensored inference |
-| TUI | Ratatui | Terminal dashboard |
+| Execution | Rust (tokio, async) | Tool registry, sandbox, permissions, squad orchestration |
+| Memory | Python (ChromaDB, SQLite) | Mempalace, semantic search, context compression |
+| Bus | NATS | Component communication & real-time telemetry |
+| LLM | Ollama (Local) / Anthropic & OpenAI | Local uncensored inference (Qwen/Mistral) + Optimized API integrations |
+| TUI | Ratatui | Terminal dashboard with Swarm visualization |
 | Web | React + Vite | Web dashboard |
 
 ## License

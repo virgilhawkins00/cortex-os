@@ -1,0 +1,26 @@
+{
+  "name": "Engineering Swarm (Full-Stack)",
+  "description": "Multi-agent squad for autonomous software development from spec to deployment.",
+  "agents": [
+    {
+      "role": "architect",
+      "goal": "Review the core infrastructure files and generate an Architectural Decision Record summarizing the plan.",
+      "name": "Arquiteto Chefe"
+    },
+    {
+      "role": "software-engineer",
+      "goal": "Monitor the architectural specs and write modular code matching the requirements. Run linters to ensure quality.",
+      "name": "Desenvolvedor Full-Stack"
+    },
+    {
+      "role": "cyber-security",
+      "goal": "Scan generated files for obvious hardcoded secrets or vulnerabilities.",
+      "name": "Auditor de Segurança"
+    },
+    {
+      "role": "devops",
+      "goal": "Create and validate Dockerfiles to ensure the application environments are reproducible.",
+      "name": "Engenheiro DevOps"
+    }
+  ]
+}

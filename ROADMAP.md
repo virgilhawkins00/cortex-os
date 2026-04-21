@@ -9,11 +9,11 @@
 Um **sistema operacional autônomo para IA** que:
 - Recebe um objetivo em linguagem natural
 - Planeja a execução (multi-step)
-- Executa ferramentas em sandbox segura
-- Persiste memória semântica entre sessões (nunca esquece)
+- Executa ferramentas em sandbox segura e orquestra **Squads** (times inteiros operando em paralelo)
+- Persiste memória semântica com o **Mempalace** (redução drástica de tokens enviando apenas recortes de contexto)
+- Construído **Open-Source-First** (Ollama, Qwen), mas totalmente economizado e suportado nativamente para OpenAI e Anthropic APIs
 - Se comunica via qualquer canal (Terminal, Web, WhatsApp, Discord, Telegram...)
-- Roda 100% local (sem dependência de APIs externas) OU na nuvem (VM/GCP)
-- É plug & play — `git clone && cargo build && docker compose up`
+- Substitui plataformas acopladas como Claude Code / OpenDevin, sendo 100% local, soberano e plug & play.
 
 ---
 
@@ -194,19 +194,30 @@ Um **sistema operacional autônomo para IA** que:
 
 ---
 
-## 🟡 Fase 8 — Multi-Agent Swarm (Orquestração) 🚀
+## 🟢 Fase 8 — Multi-Agent Swarm (Orquestração) ✅
 
 **Objetivo:** Rodar múltiplos agentes simultâneos em tarefas complexas.
 
-- [ ] **Agent Swarm Manager**: Orquestrador central que coordena papéis (DevOps, Architect, Tech Lead, Software Engineer).
-- [ ] **Especialização de Papéis**: System prompts específicos para cada função.
-- [ ] **Inter-Agent Communication**: Agentes podem pedir ajuda ou delegar tarefas para outros agentes via NATS.
-- [ ] **Concorrência**: Interface (CLI/TUI/Web/Discord) capaz de monitorar múltiplos agentes trabalhando em paralelo.
-- [ ] **Finance Swarm**: Especialistas em mercado financeiro (Análise Técnica + Fundamentalista) validando trades em tempo real.
+- [x] **Agent Swarm Manager**: Orquestrador central com fallback local e paralelismo via `tokio`.
+- [x] **Configuração por Pastas**: Hot-reloading nativo detectando arquivos `.json` e scripts `sh/py`.
+- [x] **Parallel Squads**: Lançamento de squads (grupos de agentes) operando ao mesmo tempo.
+- [x] **TUI Dashboard Swarm**: Monitoramento em tempo real de quem está no squad com status "Thinking/Acting/Finished".
 
 ---
 
-## 🔮 Fase 9 — Ecossistema (Futuro)
+## 🟢 Fase 9 — Token Reduction & Engenharia ✅ (COMPLETA)
+
+**Objetivo:** Baratear as chamadas feitas para APIs grandes e estruturar os principais de Swarm de uso.
+
+- [x] **Mempalace Compression**: Compressor estilo "Caveman" para reduzir tokens em tool outputs e memórias semânticas mantendo o payload leve.
+- [x] **Model Router Especializado**: Adição nativa de clientes para Anthropic, OpenAI, Gemini e Groq com roteamento dinâmico via variáveis de ambiente.
+- [x] **Engineering Swarm**: Squad autônomo com Architect, Software Engineer (linter tools), DevOps (Docker tools) e Security.
+- [x] **Financial Swarm**: Squad orquestrando o Analista Técnico (Binance), Pesquisador Macroeconômico e Gestor de Risco.
+- [ ] Testes práticos da fábrica de software e trading em simulação dry-run.
+
+---
+
+## 🔮 Fase 10 — Ecossistema (Futuro)
 
 **Objetivo:** Cortex OS como plataforma.
 
@@ -231,8 +242,9 @@ Um **sistema operacional autônomo para IA** que:
 | 5. Gateway | ✅ Completa | Fase 3 |
 | 6. Segurança | 1 semana | Fase 3-5 |
 | 7. Deploy | 1 semana | Fase 6 |
-| 8. Swarm | 2 semanas | Fase 6 |
-| 9. Ecossistema | Ongoing | Fase 8 |
+| 8. Swarm | ✅ Completa | Fase 6 |
+| 9. Engenharia/Tokens | 2 semanas | Fase 8 |
+| 10. Ecossistema | Ongoing | Fase 9 |
 
 **Total estimado até produto funcional (Fase 5): ~6-9 semanas**
 **Total até production-ready (Fase 7): ~8-12 semanas**

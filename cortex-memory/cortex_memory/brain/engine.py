@@ -18,8 +18,10 @@ import re
 from ..palace.knowledge_graph import KnowledgeGraph
 from ..palace.search import HybridSearchEngine
 from .model_router import ModelRouter
+from .api_clients import ExternalApiClient
 from .ollama_client import OllamaClient
 from .prompts import SystemPromptBuilder
+from .compressor import TokenBudget
 
 logger = logging.getLogger(__name__)
 
@@ -73,15 +75,21 @@ class BrainEngine:
         - "model": Which model was used
         - "memories_used": How many memories were injected
         """
-        # Select model
-        selected_model = model or self._router.route(task_type)
-        if not selected_model:
+        # Select model or client instance
+        selected_model_or_client = model or self._router.route(task_type)
+        if not selected_model_or_client:
             return {
-                "response": "No LLM model available. Please pull a model with `ollama pull dolphin-mistral`.",
+                "response": "No LLM model accessible. Please configure Ollama or an external API key.",
                 "tool_call": None,
                 "model": None,
                 "memories_used": 0,
             }
+
+        # Apply Caveman compression to the main prompt to catch large tool 
+        # observations sent by the Rust worker, keeping it within a strict budget
+        # to save tokens when hitting external APIs.
+        prompt = TokenBudget.fit_to_budget(prompt, max_tokens=1500, compress_first=True)
+
 
         # Build context
         memory_contents: list[str] = []
@@ -112,19 +120,27 @@ class BrainEngine:
             role=kwargs.get("role"),
         )
 
-        # Call LLM
+        # Call LLM based on client type
         try:
-            response_text = await self._ollama.generate(
-                prompt=prompt,
-                model=selected_model,
-                system=system_prompt,
-            )
+            if isinstance(selected_model_or_client, ExternalApiClient):
+                response_text = await selected_model_or_client.generate(
+                    prompt=prompt,
+                    system_prompt=system_prompt,
+                )
+                model_name = selected_model_or_client.model_id
+            else:
+                response_text = await self._ollama.generate(
+                    prompt=prompt,
+                    model=selected_model_or_client,
+                    system=system_prompt,
+                )
+                model_name = selected_model_or_client
         except Exception as e:
             logger.error("LLM generation failed: %s", e)
             return {
                 "response": f"LLM error: {e}",
                 "tool_call": None,
-                "model": selected_model,
+                "model": getattr(selected_model_or_client, "model_id", selected_model_or_client),
                 "memories_used": len(memory_contents),
             }
 
@@ -133,7 +149,7 @@ class BrainEngine:
 
         logger.info(
             "Brain.think complete: model=%s, memories=%d, tool_call=%s",
-            selected_model,
+            model_name,
             len(memory_contents),
             tool_call.get("tool") if tool_call else None,
         )
@@ -141,7 +157,7 @@ class BrainEngine:
         return {
             "response": response_text,
             "tool_call": tool_call,
-            "model": selected_model,
+            "model": model_name,
             "memories_used": len(memory_contents),
         }
 
