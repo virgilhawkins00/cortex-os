@@ -124,3 +124,45 @@ impl Vault {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_vault_encrypt_decrypt() -> Result<()> {
+        let password = "test-master-password";
+        let mut data = HashMap::new();
+        data.insert("API_KEY".to_string(), "sk-12345".to_string());
+        data.insert("DB_URL".to_string(), "postgres://localhost".to_string());
+
+        // Test save
+        Vault::save_vault(password, &data)?;
+
+        // Test load
+        let loaded = Vault::load_vault(password)?;
+        assert_eq!(loaded.get("API_KEY").unwrap(), "sk-12345");
+        assert_eq!(loaded.get("DB_URL").unwrap(), "postgres://localhost");
+
+        // Cleanup
+        let _ = fs::remove_file(Vault::get_vault_path());
+        Ok(())
+    }
+
+    #[test]
+    fn test_vault_wrong_password() -> Result<()> {
+        let password = "correct-password";
+        let mut data = HashMap::new();
+        data.insert("SECRET".to_string(), "hidden".to_string());
+        Vault::save_vault(password, &data)?;
+
+        // Try wrong password
+        let result = Vault::load_vault("wrong-password");
+        assert!(result.is_err());
+
+        // Cleanup
+        let _ = fs::remove_file(Vault::get_vault_path());
+        Ok(())
+    }
+}
+

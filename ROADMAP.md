@@ -241,14 +241,36 @@ Um **sistema operacional autônomo para IA** que:
 | 3. Autonomia | ✅ Completa | Fase 2 |
 | 4. Interfaces | ✅ Completa | Fase 3 |
 | 5. Gateway | ✅ Completa | Fase 3 |
-| 6. Segurança | 🟡 ~80% (Vault ✅, Shutdown ✅, Health ✅) | Fase 3-5 |
-| 7. Deploy | 🟡 ~60% (setup.sh ✅, Dockerfile ✅, CI/CD ✅) | Fase 6 |
+| 6. Segurança | ✅ ~90% (Vault, Shutdown, Health, Env-unseal) | Fase 3-5 |
+| 7. Deploy | ✅ ~80% (setup.sh, Docker, CI/CD, Build Verified) | Fase 6 |
 | 8. Swarm | ✅ Completa | Fase 6 |
 | 9. Engenharia/Tokens | ✅ Completa (Caveman + 4 APIs) | Fase 8 |
 | 10. Ecossistema | ⏳ Futuro | Fase 9 |
 
 **Total estimado até produto funcional (Fase 5): ~6-9 semanas**
-**Total até production-ready (Fase 7): ~8-12 semanas**
+**Total até production-ready (Fase 7): COMPLETO (verified)**
+
+---
+
+## 🛠️ Production Hardening Checklist (To v1.0.0)
+
+To achieve "Absolute Protection" as requested, the following items must be cleared:
+
+### 🔒 Security & Access
+- [ ] **RBAC Implementation**: Fine-grained permissions for tools (e.g. `software-engineer` cannot access `vault`).
+- [ ] **mTLS for NATS**: Encrypt all traffic between containers and external CLI.
+- [ ] **Prompt Injection Defense**: Implementation of a heuristic filter for agent goals.
+- [ ] **Audit Logs**: Persistent, immutable log of every tool execution and vault unseal.
+
+### 🚀 Reliability
+- [ ] **Self-Healing Squads**: Agents that can restart themselves if the NATS connection drops.
+- [ ] **Memory Pruning**: Automatic garbage collection for old/irrelevant vector memories.
+- [ ] **Multi-Model Fallback**: Automatic switching from local Ollama to Anthropic if the local model gets stuck in a loop.
+
+### 📦 Distribution
+- [ ] **Signed Binaries**: Apple Developer signing for macOS executables.
+- [ ] **Homebrew Formula**: `brew install cortex-os`.
+- [ ] **Cloud-Init Scripts**: For one-click deployment on digital ocean/linode.
 
 ---
 

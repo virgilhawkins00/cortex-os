@@ -45,6 +45,19 @@ enum Commands {
         #[command(subcommand)]
         action: VaultAction,
     },
+    /// Start an autonomous agent with a specific goal
+    Agent {
+        /// Role of the agent (default, architect, software-engineer, etc.)
+        #[arg(long, default_value = "default")]
+        role: String,
+        /// The goal/task for the agent to achieve
+        goal: String,
+    },
+    /// Start a parallel squad of agents
+    Squad {
+        /// Name of the squad to launch (engineering, financial, etc.)
+        name: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -71,31 +84,31 @@ async fn main() -> Result<()> {
 
     // 1. Process explicit Vault management subcommands
     if let Some(cmd) = &cli.command {
-        match cmd {
-            Commands::Vault { action } => {
-                let password = rpassword::prompt_password("Enter Vault Master Password: ")?;
-                match action {
-                    VaultAction::Init => {
-                        cortex_core::vault::Vault::init(&password)?;
-                        println!("Vault initialized at .env.vault.");
-                    }
-                    VaultAction::Set { key, value } => {
-                        cortex_core::vault::Vault::set(&password, key, value)?;
-                        println!("Vault updated key: {}", key);
-                    }
-                    VaultAction::Unseal => {
-                        cortex_core::vault::Vault::unseal(&password)?;
-                        println!("Vault successfully unsealed. Keys are valid.");
-                    }
+        if let Commands::Vault { action } = cmd {
+            let password = std::env::var("CORTEX_MASTER_PASSWORD")
+                .or_else(|_| rpassword::prompt_password("Enter Vault Master Password: "))?;
+            match action {
+                VaultAction::Init => {
+                    cortex_core::vault::Vault::init(&password)?;
+                    println!("Vault initialized at .env.vault.");
                 }
-                return Ok(());
+                VaultAction::Set { key, value } => {
+                    cortex_core::vault::Vault::set(&password, key, value)?;
+                    println!("Vault updated key: {}", key);
+                }
+                VaultAction::Unseal => {
+                    cortex_core::vault::Vault::unseal(&password)?;
+                    println!("Vault successfully unsealed. Keys are valid.");
+                }
             }
+            return Ok(());
         }
     }
 
     // 2. Normal boot execution: Unseal the Vault if it exists
     if std::path::Path::new(".env.vault").exists() {
-        let password = rpassword::prompt_password("Vault found. Enter Master Password to boot Cortex OS: ")?;
+        let password = std::env::var("CORTEX_MASTER_PASSWORD")
+            .or_else(|_| rpassword::prompt_password("Vault found. Enter Master Password to boot Cortex OS: "))?;
         cortex_core::vault::Vault::unseal(&password)?;
         println!("Vault unsealed into memory.");
     } else {
@@ -153,6 +166,16 @@ async fn main() -> Result<()> {
 
     if cli.daemon {
         run_daemon(&cli.nats_url, cli.nats_token.as_deref(), registry, agent_registry_arc, policy).await?;
+    } else if let Some(cmd) = &cli.command {
+        match cmd {
+            Commands::Agent { role, goal } => {
+                handle_agent(bus_arc, registry, agent_registry_arc, policy, &format!("{} {}", role, goal)).await;
+            }
+            Commands::Squad { name } => {
+                handle_squad(bus_arc, registry, agent_registry_arc, policy, name).await;
+            }
+            _ => unreachable!(), // Vault handled above
+        }
     } else {
         run_interactive(&cli.nats_url, cli.nats_token.as_deref(), registry, agent_registry_arc, policy).await?;
     }

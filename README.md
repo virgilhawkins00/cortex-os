@@ -19,7 +19,63 @@ Cortex OS is a **unified, from-scratch** autonomous AI runtime, designed as a su
 
 One binary. One `docker compose up`. Done.
 
-## Architecture
+## 🏛️ Strategic Vision
+
+Cortex OS is built on the premise that AI should be a **sovereign extension of the user**, not a rented service. While other tools focus on simple code generation, Cortex is designed as a **Local-First Autonomous Engine** that manages complex, multi-domain workflows through parallelized expertise.
+
+### Why Cortex?
+- **Zero Token Waste**: Native Mempalace integration and heuristic compressors ensure you only send essential data to expensive APIs.
+- **Privacy First**: With the AES-256 Secrets Vault and local Ollama support, your strategic data never leaves your infrastructure unless you explicitly route it.
+
+## 🧬 Sovereign Swarm Architecture
+
+```mermaid
+graph TD
+    User([User]) <--> CLI[[Cortex CLI / TUI]]
+    CLI <--> Backbone{NATS Message Bus}
+    
+    subgraph "Core Engine (Rust)"
+        Backbone <--> Shield[Cortex Shield / Sandbox]
+        Shield <--> Vault[(Encrypted Vault)]
+        Shield <--> Tools[System Tools / Bash]
+    end
+    
+    subgraph "Sovereign Intelligence (Python)"
+        Backbone <--> Brain[Cortex Brain]
+        Brain <--> Palace[(Mempalace / ChromaDB)]
+        Brain <--> Compressor[Caveman Token Reduction]
+    end
+    
+    subgraph "Autonomous Swarms"
+        Backbone <--> Squad_Eng[Engineering Squad]
+        Backbone <--> Squad_Fin[Financial Squad]
+        Backbone <--> Squad_Sec[Security Squad]
+    end
+    
+    Squad_Eng -.-> LLM[Ollama / Anthropic / OpenAI]
+    Squad_Fin -.-> LLM
+    Squad_Sec -.-> LLM
+```
+
+Cortex OS doesn't just run tasks; it orchestrates a distributed nervous system:
+1. **The Brain (cortex-memory)**: A Python-based semantic engine that manages long-term memory, knowledge graphs, and context compression.
+2. **The Backbone (NATS)**: A high-performance message bus that allows components (CLI, TUI, Gateway, Agents) to communicate with sub-millisecond latency.
+3. **The Shield (cortex-core)**: A Rust-based execution layer that enforces strict permissions, handles sandboxed tool execution, and secures your API secrets.
+4. **The Swarm (Agents)**: A modular ecosystem of domain-specific agents that can be dynamically scaled and reassigned to different squads.
+### 🧠 The Philosophy: Local-First Sovereignty
+Most AI platforms are "Cloud-First," meaning your data is a guest in their house. Cortex OS is **"Local-First,"** meaning the LLM is a guest in *your* house. By orchestrating local Ollama instances with secure tunnels to external providers (Anthropic/OpenAI), Cortex gives you the best of both worlds: extreme speed and privacy for daily tasks, and high-order reasoning for complex architecture.
+
+## 🚀 Key Features
+
+| Feature | Description | Status |
+| :--- | :--- | :--- |
+| **Encrypted Vault** | AES-256-GCM storage for all sensitive API keys. | ✅ Production |
+| **Caveman Compression** | Native token-reduction algorithms for LLM context. | ✅ Production |
+| **Health Circuit Breaker** | Automatically halts agents if LLM backends fail. | ✅ Production |
+| **Swarm Orchestration** | Domain-specific agent squads (FinOps, Eng, Sec). | ✅ Production |
+| **Sovereign Memory** | Long-term vector storage via ChromaDB. | ✅ Production |
+| **Graceful Shutdown** | Coordinated SIGINT handling for all subsystems. | ✅ Production |
+
 
 ```
 cortex-os/
